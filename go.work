@@ -1,0 +1,7 @@
+go 1.23.2
+
+use .
+
+replace github.com/alexj212/console => ../fork/console/
+
+//replace github.com/Paltalk-US/search-server => ../search-server
