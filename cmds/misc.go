@@ -43,7 +43,7 @@ func GrepCommand(cli *consolekit.CLI) *cobra.Command {
 				line := scanner.Text()
 				matched := strings.Contains(line, pattern)
 				if (matched && !invertMatch) || (!matched && invertMatch) {
-					cmd.Printf(line)
+					cmd.Printf(line + "\n")
 				}
 			}
 			return scanner.Err()

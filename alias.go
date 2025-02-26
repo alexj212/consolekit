@@ -24,12 +24,14 @@ func (c *CLI) AddAlias() {
 	aliasCmd.AddCommand(aliasPrintCmd)
 	c.AddCommand(aliasCmd)
 }
-
+func (c *CLI) LookupAliases(cmdLine string) (string, bool) {
+	return aliases.Get(cmdLine)
+}
 func (c *CLI) loadAliases(Name string) {
 	// Get the user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		c.Repl.Printf(cli.ErrorString("unable to get home directory, %v\n", err))
+		fmt.Printf(cli.ErrorString("unable to get home directory, %v\n", err))
 		return
 	}
 
@@ -40,7 +42,7 @@ func (c *CLI) loadAliases(Name string) {
 	// Open the .aliases file
 	file, err := os.Open(aliasesFilePath)
 	if err != nil {
-		c.Repl.Printf(cli.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
+		fmt.Printf(cli.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
 		setupDefaultAliases()
 		return
 	}
@@ -59,18 +61,18 @@ func (c *CLI) loadAliases(Name string) {
 		// Split the line into name and value
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
-			c.Repl.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
 			continue
 		}
 
 		name := strings.TrimSpace(parts[0])
 		if strings.Contains(name, " ") {
-			c.Repl.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, name)
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, name)
 			continue
 		}
 		value := strings.TrimSpace(parts[1])
 		if len(value) == 0 {
-			c.Repl.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
 			continue
 		}
 
@@ -82,13 +84,13 @@ func (c *CLI) loadAliases(Name string) {
 
 	// Check for scanner errors
 	if err := scanner.Err(); err != nil {
-		c.Repl.Printf("Error reading file: %v\n", err)
+		fmt.Printf("Error reading file: %v\n", err)
 		return
 	}
 
 	if aliases.Len() == 0 {
 		setupDefaultAliases()
-		c.Repl.Printf("No aliases found in %s, setting defaults.\n", aliasesFilePath)
+		fmt.Printf("No aliases found in %s, setting defaults.\n", aliasesFilePath)
 		return
 	}
 }

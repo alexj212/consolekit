@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/fatih/color"
+	"github.com/kballard/go-shellquote"
 	"regexp"
 
 	"github.com/mattn/go-isatty"
@@ -141,6 +142,18 @@ func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string
 		}
 	}
 
+	cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {
+		if len(args) > 0 {
+			line, ok := cli.LookupAliases(args[0])
+			if ok {
+				sp, err := shellquote.Split(line)
+				if err == nil {
+					args = append(sp, args[1:]...)
+				}
+			}
+		}
+		return args, nil
+	})
 	cli.AddCommand(&cobra.Command{
 		Use:   "exec [command]",
 		Short: "Execute a command in REPL mode",
