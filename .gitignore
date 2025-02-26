@@ -1,0 +1,12 @@
+build
+vendor
+go.work
+go.work.*
+go.sum
+dist
+.idea
+venv
+.history
+logs.db
+genrmi2
+*.json
