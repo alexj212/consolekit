@@ -15,6 +15,9 @@ require (
 	github.com/alexj212/readline v0.0.0-20240418050107-8aadb99ad4c6 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rsteube/carapace v0.50.2 // indirect
 	github.com/rsteube/carapace-shlex v0.1.2 // indirect

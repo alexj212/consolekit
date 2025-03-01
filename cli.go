@@ -1,13 +1,11 @@
 package consolekit
 
 import (
-	"bufio"
-	"bytes"
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/alexj212/consolekit/safemap"
 	"github.com/fatih/color"
-	"github.com/kballard/go-shellquote"
 	"regexp"
 
 	"github.com/mattn/go-isatty"
@@ -23,46 +21,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cli *CLI
-
 type CLI struct {
-	RootCmd                                                       *cobra.Command
-	MainCmd                                                       *cobra.Command
-	Repl                                                          *console.Console
-	LocalMenu                                                     *console.Menu
-	LocalPrompt                                                   *console.Prompt
-	AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string
-	OnExit                                                        func(caller string, code int)
-	InfoString, ErrorString                                       func(format string, a ...any) string
-	scripts                                                       embed.FS
+	NoColor      bool
+	RootCmd      *cobra.Command
+	Repl         *console.Console
+	LocalMenu    *console.Menu
+	LocalPrompt  *console.Prompt
+	BuildDate    string
+	LatestCommit string
+	Version      string
+	GitRepo      string
+	GitBranch    string
+	AppName      string
+	OnExit       func(caller string, code int)
+	InfoString   func(format string, a ...any) string
+	ErrorString  func(format string, a ...any) string
+	Scripts      embed.FS
+	Defaults     *safemap.SafeMap[string, string]
 }
 
-func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string, customizer func(*CLI) error) *CLI {
-	rootCmd := &cobra.Command{
-		Use:   "",
-		Short: "Modular CLI application with REPL, piping, chaining, and file redirection",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			commandStr := strings.Join(args, " ")
-			if commandStr == "" {
-				return nil
-			}
-			cmd.Printf("rootCmd [command]: %s\n", commandStr)
-
-			res, err := cli.ExecuteCommands(commandStr)
-			if err != nil {
-				cmd.Printf("rootCmd error: %v\n", err)
-				return err
-			}
-			fmt.Printf("rootCmd %s\n", res)
-
-			return nil
-		},
-	}
-
-	repl := console.New(AppName)
-	cli = &CLI{
-		RootCmd:      rootCmd,
-		Repl:         repl,
+func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string, customizer func(*CLI) error) (*CLI, error) {
+	cli := &CLI{
 		AppName:      AppName,
 		BuildDate:    BuildDate,
 		LatestCommit: LatestCommit,
@@ -71,42 +50,30 @@ func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string
 		GitBranch:    GitBranch,
 		InfoString:   color.New(color.FgWhite).SprintfFunc(),
 		ErrorString:  color.New(color.FgRed).SprintfFunc(),
+		Defaults:     safemap.New[string, string](),
 	}
+
+	cli.RootCmd = &cobra.Command{
+		Use:                "",
+		Short:              "modular consolekit",
+		DisableFlagParsing: true,
+	}
+	cli.Repl = console.New(AppName)
+
 	console.DisableParse = true
-	cli.MainCmd = &cobra.Command{
-		Use:   "",
-		Short: "Modular CLI application with REPL, piping, chaining, and file redirection",
-		RunE: func(cmd *cobra.Command, args []string) error {
 
-			commandStr := strings.Join(args, " ")
-			if commandStr == "" {
-				return nil
-			}
-
-			res, err := cli.ExecuteCommands(commandStr)
-			if err != nil {
-				cmd.Printf("MainCmd ExecuteCommandsNew %s error: %v\n", commandStr, err)
-				return err
-			}
-
-			fmt.Printf("%s\n", res)
-			return err
-		},
-	}
-
-	// Check for terminal support and NO_COLOR
 	isTTY := isatty.IsTerminal(os.Stdout.Fd())
-	noColor := os.Getenv("NO_COLOR") != "" || !isTTY
+	cli.NoColor = os.Getenv("NO_COLOR") != "" || !isTTY
 
-	if noColor {
+	if cli.NoColor {
 		cli.InfoString = fmt.Sprintf
 		cli.ErrorString = fmt.Sprintf
 	}
-	repl.NewlineAfter = true
+	cli.Repl.NewlineAfter = true
 
-	//_ = repl.Shell().Config.Set("editing-mode", "vi")
-	_ = repl.Shell().Config.Set("history-autosuggest", true)
-	_ = repl.Shell().Config.Set("usage-hint-always", true)
+	_ = cli.Repl.Shell().Config.Set("editing-mode", "vi")
+	_ = cli.Repl.Shell().Config.Set("history-autosuggest", true)
+	_ = cli.Repl.Shell().Config.Set("usage-hint-always", true)
 
 	name := strings.ToLower(cli.AppName)
 	fileName := fmt.Sprintf(".%s.local.repl.history", name)
@@ -117,11 +84,12 @@ func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string
 	}
 
 	filePath := filepath.Join(currentUser.HomeDir, fileName)
-	cli.LocalMenu = repl.NewMenu("local")
+	cli.LocalMenu = cli.Repl.NewMenu("local")
 	cli.LocalMenu.AddHistorySourceFile(fmt.Sprintf("%s-local", cli.AppName), filePath)
 	cli.LocalMenu.AddInterrupt(io.EOF, cli.ExitCtrlD)
 	cli.LocalMenu.AddInterrupt(errors.New(os.Interrupt.String()), cli.ExitCtrlD)
-	cli.LocalMenu.SetCommands(func() *cobra.Command { return cli.MainCmd })
+	cli.LocalMenu.SetCommands(func() *cobra.Command { return cli.RootCmd })
+
 	SetRecursiveHelpFunc(cli.RootCmd)
 	cli.LocalPrompt = cli.LocalMenu.Prompt()
 
@@ -132,168 +100,55 @@ func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string
 		return cli.InfoString(time.Now().Format("03:04:05.000"))
 	}
 	cli.LocalPrompt.Transient = func() string { return "\x1b[1;30m>> \x1b[0m" }
-
-	repl.SwitchMenu("local")
+	cli.Repl.SwitchMenu("local")
 
 	if customizer != nil {
 		err := customizer(cli)
 		if err != nil {
 			fmt.Printf("customizer error: %v\n", err)
+			return nil, errors.New("customizer error")
 		}
 	}
 
-	cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {
-		if len(args) > 0 {
-			line, ok := cli.LookupAliases(args[0])
-			if ok {
-				sp, err := shellquote.Split(line)
-				if err == nil {
-					args = append(sp, args[1:]...)
-				}
-			}
-		}
-		return args, nil
-	})
-	cli.AddCommand(&cobra.Command{
-		Use:   "exec [command]",
-		Short: "Execute a command in REPL mode",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			commandStr := strings.Join(args, " ")
-			if commandStr == "" {
-				return nil
-			}
-			cmd.Printf("exec [command]: %s\n", commandStr)
-			res, err := cli.ExecuteCommands(commandStr)
-			if err != nil {
-				cmd.Printf("exec error: %v\n", err)
-				return err
-			}
-			fmt.Print(res)
-			return nil
-		},
-	})
-
-	return cli
+	return cli, nil
 }
 
 func (c *CLI) AddCommand(cmd *cobra.Command) {
 	c.RootCmd.AddCommand(cmd)
 }
 
-func (c *CLI) ReadFromPipe(cmd *cobra.Command) string {
-	var input strings.Builder
-	reader := bufio.NewReader(cmd.InOrStdin())
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			break
-		}
-		input.WriteString(line)
-		if err == io.EOF {
-			break
-		}
-	}
-	return strings.TrimSpace(input.String())
-}
+func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
+	c.Defaults.ForEach(func(k string, v string) bool {
 
-func isInputFromPipe(cmd *cobra.Command) bool {
-	input := cmd.InOrStdin()
-	if file, ok := input.(*os.File); ok {
-		fileInfo, err := file.Stat()
-		if err != nil {
-			return false
-		}
-		return (fileInfo.Mode() & os.ModeCharDevice) == 0
-	}
-	return false
-}
+		input = strings.ReplaceAll(input, k, v)
+		return false
+	})
+	// Regular expression to split by spaces, but keep quoted sections intact
+	re := regexp.MustCompile(`"[^"]*"|\S+`)
+	words := re.FindAllString(input, -1)
 
-func (c *CLI) ExecuteCommands(commandStr string) (string, error) {
-	//fmt.Printf("[DEBUG] %s: ExecuteCommands: %s\n", time.Now().Format("15:04:05.000"), commandStr)
-
-	var filteredCommands []string
-	lines := strings.Split(commandStr, "\n")
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "#") || trimmedLine == "" {
-			continue
-		}
-		if commentIndex := strings.Index(trimmedLine, "#"); commentIndex != -1 {
-			trimmedLine = strings.TrimSpace(trimmedLine[:commentIndex])
-		}
-		if trimmedLine != "" {
-			filteredCommands = append(filteredCommands, trimmedLine)
-		}
-	}
-	commandStr = strings.Join(filteredCommands, ";")
-
-	commands := strings.Split(commandStr, ";")
-	var finalOutput bytes.Buffer
-
-	for _, cmdStr := range commands {
-		cmdStr = strings.TrimSpace(cmdStr)
-		if cmdStr == "" {
-			continue
-		}
-
-		var fileOutput *os.File
-		redirMatch := regexp.MustCompile(`(.*)>(.*)`).FindStringSubmatch(cmdStr)
-		if len(redirMatch) == 3 {
-			cmdStr = strings.TrimSpace(redirMatch[1])
-			filePath := strings.TrimSpace(redirMatch[2])
-			var err error
-			fileOutput, err = os.Create(filePath)
-			if err != nil {
-				return "", fmt.Errorf("failed to create file: %w", err)
-			}
-			defer fileOutput.Close()
-		}
-
-		//fmt.Printf("[DEBUG] %s: cmdStr: %s\n", time.Now().Format("15:04:05.000"), cmdStr)
-		pipeCommands := strings.Split(cmdStr, "|")
-
-		var inputBuffer *bytes.Buffer
-
-		for i, pipeCmd := range pipeCommands {
-			pipeCmd = strings.TrimSpace(pipeCmd)
-			//fmt.Printf("[DEBUG] %s: pipeCmd[%d]: %s\n", time.Now().Format("15:04:05.000"), i, pipeCmd)
-			args := strings.Split(pipeCmd, " ")
-			//fmt.Printf("[DEBUG] %s: args: %v\n", time.Now().Format("15:04:05.000"), args)
-
-			cmd := c.RootCmd
-			cmd.SetArgs(args)
-
-			var outputBuffer bytes.Buffer
-
-			if finalOutput.Len() > 0 {
-				//fmt.Printf("[DEBUG] %s: setting cmd input from final output buffer\n", time.Now().Format("15:04:05.000"))
-				cmd.SetIn(&finalOutput)
-			} else if inputBuffer != nil {
-				//fmt.Printf("[DEBUG] %s: setting cmd input from previous output buffer\n", time.Now().Format("15:04:05.000"))
-				cmd.SetIn(inputBuffer)
-			} else if i == 0 && isInputFromPipe(cmd) {
-				//fmt.Printf("[DEBUG] %s: piping from stdin\n", time.Now().Format("15:04:05.000"))
-				cmd.SetIn(cmd.InOrStdin())
-			}
-
-			cmd.SetOut(&outputBuffer)
-
-			if err := cmd.Execute(); err != nil {
-				return "", fmt.Errorf("failed to execute command '%s': %w", pipeCmd, err)
-			}
-
-			// Append output to the final output buffer
-			io.Copy(&finalOutput, &outputBuffer)
-			// Prepare the output for piping to the next command if needed
-			inputBuffer = &outputBuffer
-		}
-
-		// If file redirection is set, write to the file
-		if fileOutput != nil && inputBuffer != nil {
-			inputBuffer.WriteTo(fileOutput)
+	for i, word := range words {
+		// Check for tokens inside quotes but retain quotes
+		if strings.HasPrefix(word, `"@`) {
+			// Remove quotes, replace token, then re-wrap with quotes
+			cleanWord := strings.Trim(word, `"`)
+			words[i] = `"` + c.replaceToken(cmd, cleanWord) + `"`
+		} else if strings.HasPrefix(word, "@") {
+			// Replace token directly if not in quotes
+			words[i] = c.replaceToken(cmd, word)
 		}
 	}
 
-	return finalOutput.String(), nil
+	return strings.Join(words, " ")
+} //ReplaceDefaults
+
+// replaceToken handles token replacement. Modify this function as needed.
+func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
+
+	v, ok := c.Defaults.Get(token)
+	if ok {
+		cmd.Printf("replaceToken: %s -> %s\n", token, v)
+		return v
+	}
+	return token
 }

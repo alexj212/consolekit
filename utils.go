@@ -103,7 +103,7 @@ func (c *CLI) Execute() {
 	quit := make(chan struct{})
 
 	// Start console in a separate goroutine
-	go startConsole(quit)
+	go startConsole(c, quit)
 	//err = display.Start("genrmi2", quit)
 	//if err != nil {
 	//	Printf("error starting display: %v\n", err)
@@ -123,7 +123,7 @@ func RestoreTerminal() {
 	}
 }
 
-func startConsole(quit chan struct{}) {
+func startConsole(cli *CLI, quit chan struct{}) {
 	err := cli.AppBlock()
 	if err != nil {
 		fmt.Printf(cli.ErrorString("error executing root cmd, %v\n", err))
