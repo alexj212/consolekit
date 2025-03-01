@@ -40,17 +40,12 @@ type CLI struct {
 	Defaults     *safemap.SafeMap[string, string]
 }
 
-func NewCLI(AppName, BuildDate, LatestCommit, Version, GitRepo, GitBranch string, customizer func(*CLI) error) (*CLI, error) {
+func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 	cli := &CLI{
-		AppName:      AppName,
-		BuildDate:    BuildDate,
-		LatestCommit: LatestCommit,
-		Version:      Version,
-		GitRepo:      GitRepo,
-		GitBranch:    GitBranch,
-		InfoString:   color.New(color.FgWhite).SprintfFunc(),
-		ErrorString:  color.New(color.FgRed).SprintfFunc(),
-		Defaults:     safemap.New[string, string](),
+		AppName:     AppName,
+		InfoString:  color.New(color.FgWhite).SprintfFunc(),
+		ErrorString: color.New(color.FgRed).SprintfFunc(),
+		Defaults:    safemap.New[string, string](),
 	}
 
 	cli.RootCmd = &cobra.Command{

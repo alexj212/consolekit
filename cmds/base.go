@@ -86,6 +86,15 @@ func AddBaseCmds(cli *consolekit.CLI) {
 		Run:     printCmdFunc,
 	}
 
+	var dateCmdFunc = func(cmd *cobra.Command, args []string) {
+		cmd.Printf("%s\n", time.Now().Format(time.RFC3339))
+	}
+
+	var dateCmd = &cobra.Command{
+		Use:   "date",
+		Short: "print date",
+		Run:   dateCmdFunc,
+	}
 	var FetchURLContent = func(url string) (string, error) {
 		// Make the HTTP GET request
 		resp, err := http.Get(url)
@@ -548,6 +557,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 	cli.AddCommand(httpCmd)
 	cli.AddCommand(ifCmd)
+	cli.AddCommand(dateCmd)
 
 	cli.AddCommand(printCmd)
 	cli.AddCommand(repeatCmd)
