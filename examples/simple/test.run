@@ -1,1 +1,5 @@
-print test1 . run script
+print AAA
+print BAA
+print CBA
+print DAA
+print EBA

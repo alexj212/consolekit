@@ -22,22 +22,17 @@ import (
 )
 
 type CLI struct {
-	NoColor      bool
-	RootCmd      *cobra.Command
-	Repl         *console.Console
-	LocalMenu    *console.Menu
-	LocalPrompt  *console.Prompt
-	BuildDate    string
-	LatestCommit string
-	Version      string
-	GitRepo      string
-	GitBranch    string
-	AppName      string
-	OnExit       func(caller string, code int)
-	InfoString   func(format string, a ...any) string
-	ErrorString  func(format string, a ...any) string
-	Scripts      embed.FS
-	Defaults     *safemap.SafeMap[string, string]
+	NoColor     bool
+	RootCmd     *cobra.Command
+	Repl        *console.Console
+	LocalMenu   *console.Menu
+	LocalPrompt *console.Prompt
+	AppName     string
+	OnExit      func(caller string, code int)
+	InfoString  func(format string, a ...any) string
+	ErrorString func(format string, a ...any) string
+	Scripts     embed.FS
+	Defaults    *safemap.SafeMap[string, string]
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {

@@ -37,22 +37,6 @@ func AddBaseCmds(cli *consolekit.CLI) {
 		Run:   clsCmdFunc,
 	}
 
-	var verCmdFunc = func(cmd *cobra.Command, args []string) {
-		cmd.Printf("BuildDate    : %s\n", cli.BuildDate)
-		cmd.Printf("LatestCommit : %s\n", cli.LatestCommit)
-		cmd.Printf("Version      : %s\n", cli.Version)
-		cmd.Printf("GitRepo      : %s\n", cli.GitRepo)
-		cmd.Printf("GitBranch    : %s\n", cli.GitBranch)
-
-	}
-
-	var verCmd = &cobra.Command{
-		Use:     "version",
-		Aliases: []string{"v", "ver"},
-		Short:   "Show version info",
-		Run:     verCmdFunc,
-	}
-
 	var exitCmdFunc = func(cmd *cobra.Command, args []string) {
 		code := 0
 
@@ -235,15 +219,13 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				for count == -1 || i < count {
 
 					cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
-					cmds := strings.Split(cmdLine, ";")
-					for _, c := range cmds {
-						res, err := cli.Repl.ExecuteCommand(cli.RootCmd, c)
-						if err != nil {
-							cmd.Printf("Error executing command: %s err: %v\n", c, err)
-							continue
-						}
-						cmd.Printf("Result: %s\n", res)
+					res, err := cli.Repl.ExecuteLine(cmdLine)
+					if err != nil {
+						cmd.Printf("Error executing command: %s err: %v\n", cmdLine, err)
+						continue
 					}
+
+					cmd.Printf("Result: %s\n", res)
 
 					if count != -1 {
 						i++
@@ -379,16 +361,13 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			cmd.Printf("running if_true: `%s`\n", ifTrue)
 
 			ifTrue = cli.ReplaceDefaults(cmd, ifTrue)
-			cmds := strings.Split(ifTrue, ";")
-			for _, c := range cmds {
-				cmd.Printf("running if_true: `%s`\n", c)
-				res, err := cli.Repl.ExecuteCommand(cli.RootCmd, c)
-				if err != nil {
-					cmd.Printf("Error executing command: %s err: %v\n", c, err)
-					continue
-				}
-				cmd.Printf("Result: %s\n", res)
+			cmd.Printf("running if_false: `%s`\n", ifTrue)
+			res, err := cli.Repl.ExecuteLine(ifTrue)
+			if err != nil {
+				cmd.Printf("Error executing command: %s err: %v\n", ifTrue, err)
+				return
 			}
+			cmd.Printf("Result: %s\n", res)
 			return
 		}
 		ifFalse := cmd.Flag("if_false").Value.String()
@@ -396,17 +375,13 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			cmd.Printf("running if_false: `%s`\n", ifFalse)
 
 			ifFalse = cli.ReplaceDefaults(cmd, ifFalse)
-			cmds := strings.Split(ifFalse, ";")
-			for _, c := range cmds {
-				cmd.Printf("running if_false: `%s`\n", c)
-				res, err := cli.Repl.ExecuteCommand(cli.RootCmd, c)
-				if err != nil {
-					cmd.Printf("Error executing command: %s err: %v\n", c, err)
-					continue
-				}
-				cmd.Printf("Result: %s\n", res)
-
+			cmd.Printf("running if_false: `%s`\n", ifFalse)
+			res, err := cli.Repl.ExecuteLine(ifFalse)
+			if err != nil {
+				cmd.Printf("Error executing ifFalse: %s err: %v\n", ifFalse, err)
+				return
 			}
+			cmd.Printf("Result: %s\n", res)
 			return
 		}
 
@@ -563,7 +538,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 	cli.AddCommand(repeatCmd)
 	cli.AddCommand(sleepCmd)
 	cli.AddCommand(testCmd)
-	cli.AddCommand(verCmd)
 	cli.AddCommand(waitCmd)
 	cli.AddCommand(waitForCmd)
 }

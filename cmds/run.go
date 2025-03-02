@@ -106,7 +106,7 @@ func AddRun(cli *consolekit.CLI, scripts embed.FS) {
 				cmdLine = cli.ReplaceDefaults(nil, cmdLine)
 
 				cmd.Printf("doExec: %s\n", cmdLine)
-				res, err := cli.Repl.ExecuteCommand(cli.RootCmd, cmdLine)
+				res, err := cli.Repl.ExecuteLine(cmdLine)
 				cmd.Printf("res %s\n", res)
 				if err != nil {
 					cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
