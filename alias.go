@@ -1,9 +1,8 @@
-package cmds
+package consolekit
 
 import (
 	"bufio"
 	"fmt"
-	"github.com/alexj212/consolekit"
 	"github.com/alexj212/consolekit/safemap"
 	"github.com/kballard/go-shellquote"
 	"os"
@@ -13,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AddAlias(cli *consolekit.CLI) {
+func AddAlias(cli *CLI) {
 	var aliases = safemap.New[string, string]()
 
 	cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {

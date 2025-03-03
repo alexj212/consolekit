@@ -1,9 +1,8 @@
-package cmds
+package consolekit
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/alexj212/consolekit"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"os"
@@ -24,7 +23,7 @@ import (
 
 const ClsSeq = "\033[H\033[2J"
 
-func AddBaseCmds(cli *consolekit.CLI) {
+func AddBaseCmds(cli *CLI) {
 
 	var clsCmdFunc = func(cmd *cobra.Command, args []string) {
 		cmd.Printf(ClsSeq)
@@ -609,7 +608,7 @@ func ListFiles(dir, extension string) (os.FileInfo, []FileInfoWithTimestamp, err
 	return fi, mitmFiles, nil
 }
 
-func appendRow(cli *consolekit.CLI, table *tablewriter.Table, row []string, lineColor int) {
+func appendRow(cli *CLI, table *tablewriter.Table, row []string, lineColor int) {
 	if cli.NoColor {
 		table.Append(row)
 	} else {

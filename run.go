@@ -1,10 +1,9 @@
-package cmds
+package consolekit
 
 import (
 	"bufio"
 	"embed"
 	"fmt"
-	"github.com/alexj212/consolekit"
 	"github.com/kballard/go-shellquote"
 
 	"github.com/spf13/cobra"
@@ -15,7 +14,7 @@ import (
 	"strings"
 )
 
-func AddRun(cli *consolekit.CLI, scripts embed.FS) {
+func AddRun(cli *CLI, scripts embed.FS) {
 
 	var viewScriptCmdFunc = func(cmd *cobra.Command, args []string) {
 
@@ -130,8 +129,8 @@ func AddRun(cli *consolekit.CLI, scripts embed.FS) {
 		Short: "exec script file, use `@name` files for internal scripts. pass args that can be referenced in script as @arg0, @arg1, ...",
 		Args:  cobra.MinimumNArgs(1),
 		PostRun: func(cmd *cobra.Command, args []string) {
-			consolekit.ResetHelpFlagRecursively(cmd)
-			consolekit.ResetAllFlags(cmd)
+			ResetHelpFlagRecursively(cmd)
+			ResetAllFlags(cmd)
 		},
 
 		Run: runScriptCmdFunc,

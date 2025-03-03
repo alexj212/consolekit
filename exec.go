@@ -1,14 +1,13 @@
-package cmds
+package consolekit
 
 import (
-	"github.com/alexj212/consolekit"
 	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
 	"strings"
 )
 
-func AddExec(c *consolekit.CLI) {
+func AddExec(c *CLI) {
 	// osexecCmd represents the exec command
 	var osexecCmd = &cobra.Command{
 		Use:   "osexec [--out] [--background] [command] ",

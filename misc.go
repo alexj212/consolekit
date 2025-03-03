@@ -1,8 +1,7 @@
-package cmds
+package consolekit
 
 import (
 	"fmt"
-	"github.com/alexj212/consolekit"
 	"io"
 	"os"
 
@@ -13,7 +12,7 @@ import (
 
 // AddMisc adds the commands echo and cat
 
-func AddMisc(cli *consolekit.CLI) {
+func AddMisc(cli *CLI) {
 
 	var catCmd = &cobra.Command{
 		Use:   "cat [file]",
@@ -34,8 +33,8 @@ func AddMisc(cli *consolekit.CLI) {
 		Short: "Grep with optional inverse and insensitive flags",
 		Args:  cobra.ExactArgs(1),
 		PostRun: func(cmd *cobra.Command, args []string) {
-			consolekit.ResetHelpFlagRecursively(cmd)
-			consolekit.ResetAllFlags(cmd)
+			ResetHelpFlagRecursively(cmd)
+			ResetAllFlags(cmd)
 		},
 
 		Run: func(cmd *cobra.Command, args []string) {

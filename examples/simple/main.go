@@ -4,7 +4,6 @@ import (
 	"embed"
 	"fmt"
 	"github.com/alexj212/consolekit"
-	"github.com/alexj212/consolekit/cmds"
 	"github.com/spf13/cobra"
 )
 
@@ -30,12 +29,12 @@ var (
 
 func main() {
 	customizer := func(cli *consolekit.CLI) error {
-		cmds.AddAlias(cli)
-		cmds.AddExec(cli)
-		cmds.AddHistory(cli)
-		cmds.AddMisc(cli)
-		cmds.AddBaseCmds(cli)
-		cmds.AddRun(cli, Data)
+		consolekit.AddAlias(cli)
+		consolekit.AddExec(cli)
+		consolekit.AddHistory(cli)
+		consolekit.AddMisc(cli)
+		consolekit.AddBaseCmds(cli)
+		consolekit.AddRun(cli, Data)
 
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf("BuildDate    : %s\n", BuildDate)

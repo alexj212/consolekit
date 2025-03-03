@@ -1,12 +1,11 @@
-package cmds
+package consolekit
 
 import (
-	"github.com/alexj212/consolekit"
 	"github.com/spf13/cobra"
 	"strings"
 )
 
-func AddHistory(c *consolekit.CLI) {
+func AddHistory(c *CLI) {
 
 	var historyCmd = &cobra.Command{
 		Use:   "history",
