@@ -69,7 +69,7 @@ func AddAlias(cli *consolekit.CLI) {
 		}
 		cmd.Printf("aliases saved to %s\n", filePath)
 	}
-	setupDefaultAliases := func() {
+	setupDefaultAliases := func(cmd *cobra.Command) {
 		aliases.Set("lsu", "service list user")
 		aliases.Set("s", "service list")
 		aliases.Set("lsp", "service list proto")
@@ -82,10 +82,10 @@ func AddAlias(cli *consolekit.CLI) {
 		aliases.Set("expr", "client expr")
 		aliases.Set("abdicate", "remote 'system abdicate'")
 		aliases.Set("kill", "service kill --password=qaKillMenOw! --force ")
-		saveAliases(nil)
+		saveAliases(cmd)
 	}
 
-	loadAliases := func(Name string) {
+	loadAliases := func(cmd *cobra.Command, Name string) {
 		// Get the user's home directory
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -101,7 +101,7 @@ func AddAlias(cli *consolekit.CLI) {
 		file, err := os.Open(aliasesFilePath)
 		if err != nil {
 			fmt.Printf(cli.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
-			setupDefaultAliases()
+			setupDefaultAliases(cmd)
 			return
 		}
 		defer func() {
@@ -149,7 +149,7 @@ func AddAlias(cli *consolekit.CLI) {
 		}
 
 		if aliases.Len() == 0 {
-			setupDefaultAliases()
+			setupDefaultAliases(cmd)
 			fmt.Printf("No aliases found in %s, setting defaults.\n", aliasesFilePath)
 			return
 		}
@@ -183,7 +183,7 @@ func AddAlias(cli *consolekit.CLI) {
 		Aliases: []string{"s"},
 		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			saveAliases(nil)
+			saveAliases(cmd)
 		},
 	}
 
@@ -227,7 +227,7 @@ func AddAlias(cli *consolekit.CLI) {
 		Long:    "Add default aliases",
 		Args:    cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			setupDefaultAliases()
+			setupDefaultAliases(cmd)
 			cmd.Printf("adding default aliases, current list\n")
 			aliasPrintCmd.Run(cmd, args)
 		},
@@ -244,7 +244,7 @@ func AddAlias(cli *consolekit.CLI) {
 			alias := args[0]
 			cmd.Printf("removing alias `%s`\n", alias)
 			aliases.Delete(alias)
-			saveAliases(nil)
+			saveAliases(cmd)
 
 		},
 	}
@@ -266,7 +266,7 @@ func AddAlias(cli *consolekit.CLI) {
 		},
 	}
 
-	loadAliases(cli.AppName)
+	loadAliases(cli.RootCmd, cli.AppName)
 	aliasCmd.AddCommand(AliasAddCmd)
 	aliasCmd.AddCommand(aliasDeleteCmd)
 	aliasCmd.AddCommand(aliasDefaultsCmd)
