@@ -4,12 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/olekukonko/tablewriter"
-	"github.com/pkg/errors"
-	"os"
-	"path/filepath"
-	"slices"
-	"sort"
-
 	"github.com/spf13/cobra"
 	"io"
 	"net/http"
@@ -434,75 +428,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 	//	Printf("\n%d archives\n", len(utils.Archives()))
 	//}
 
-	var lsCmdFunc = func(cmd *cobra.Command, args []string) {
-
-		dir := "."
-		if len(args) > 0 {
-			dir = args[0]
-		}
-		if dir == "@" {
-			f, err := cli.Scripts.ReadDir(".")
-			if err != nil {
-				cmd.Printf("Error reading scripts: %v\n", err)
-				return
-			}
-
-			cmd.Printf("Scripts Available:\n")
-			for _, script := range f {
-				if strings.HasSuffix(script.Name(), ".go") {
-					continue
-				}
-				cmd.Printf("@%s\n", script.Name())
-			}
-			return
-		}
-
-		_, mitmFiles, err := ListFiles(dir, "")
-		if err != nil {
-			cmd.Printf("Error listing files in %s err: %v\n", dir, err)
-			return
-		}
-		path, err := filepath.Abs(dir)
-		if err != nil {
-			cmd.Printf("Error getting filepath %s err: %v\n", dir, err)
-			return
-		}
-		cmd.Printf("Listing files in: %s\n", path)
-
-		b, table := newTable()
-		table.SetRowLine(true)
-		table.SetHeaderLine(true)
-		table.SetBorder(false)
-
-		table.SetHeader([]string{"ID", "Size", "Date", "File"})
-
-		// Print the sorted files
-		for i, file := range mitmFiles {
-
-			row := []string{
-				fmt.Sprintf("@%d", i),
-				fmt.Sprintf("%-10d bytes", file.Size),
-				fmt.Sprintf("%-22v", file.Timestamp),
-				fmt.Sprintf("%s", file.Name),
-			}
-
-			lineColor := tablewriter.FgGreenColor
-			appendRow(cli, table, row, lineColor)
-		}
-		table.Render()
-		cmd.Printf("%s\n", b.String())
-		cmd.Printf("\nDir: %-55s total files %d\n", path, len(mitmFiles))
-	} // lsCmdFunc
-
-	var lsCmd = &cobra.Command{
-		Use:     "ls [dir | @]",
-		Aliases: []string{"list", "l"},
-		Short:   "list mitm files available, use `@` to list archives created",
-		Run:     lsCmdFunc,
-	}
-
-	cli.AddCommand(lsCmd)
-
 	// Set up flags for each command
 	waitCmd.Flags().StringP("time", "t", "", "Time to wait until in HH:MM format (24-hour)")
 	_ = waitCmd.MarkFlagRequired("time")
@@ -548,64 +473,6 @@ func newTable() (*bytes.Buffer, *tablewriter.Table) {
 	table.SetReflowDuringAutoWrap(false)
 	table.SetRowLine(true)
 	return b, table
-}
-
-// FileInfoWithTimestamp holds file info and timestamp for sorting
-type FileInfoWithTimestamp struct {
-	Name      string
-	Size      int64
-	Timestamp time.Time
-}
-
-// ByTimestampDesc sorts files by timestamp in descending order
-type ByTimestampDesc []FileInfoWithTimestamp
-
-func (a ByTimestampDesc) Len() int           { return len(a) }
-func (a ByTimestampDesc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByTimestampDesc) Less(i, j int) bool { return a[i].Timestamp.Before(a[j].Timestamp) }
-
-// ListFiles lists and prints the files in the directory that end with ".mitm"
-func ListFiles(dir, extension string) (os.FileInfo, []FileInfoWithTimestamp, error) {
-	// Check if directory exists
-	fi, err := os.Stat(dir)
-	if os.IsNotExist(err) {
-		return nil, nil, errors.Wrapf(err, "error reading directory %s", dir)
-	}
-
-	f, err := os.Open(dir)
-	if err != nil {
-		return fi, nil, errors.Wrapf(err, "error reading directory %s", dir)
-	}
-	files, err := f.Readdir(-1)
-	if err != nil {
-		return fi, nil, errors.Wrapf(err, "error reading directory %s", dir)
-	}
-	err = f.Close()
-	if err != nil {
-		return fi, nil, errors.Wrapf(err, "error reading directory %s", dir)
-	}
-	slices.SortFunc(files, func(a, b os.FileInfo) int {
-		return strings.Compare(a.Name(), b.Name())
-	})
-
-	var mitmFiles []FileInfoWithTimestamp
-
-	// Loop through the files and filter by ".mitm" extension
-	for _, file := range files {
-		if !file.IsDir() && (filepath.Ext(file.Name()) == extension || extension == "") {
-			if file.Size() > 0 {
-				mitmFiles = append(mitmFiles, FileInfoWithTimestamp{
-					Name:      file.Name(),
-					Size:      file.Size(),
-					Timestamp: file.ModTime(),
-				})
-			}
-		}
-	}
-
-	// Sort files by timestamp in descending order
-	sort.Sort(ByTimestampDesc(mitmFiles))
-	return fi, mitmFiles, nil
 }
 
 func appendRow(cli *CLI, table *tablewriter.Table, row []string, lineColor int) {
