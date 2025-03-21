@@ -391,10 +391,10 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		Run:   IfCmdFunc,
 	}
 
-	var testCmd = &cobra.Command{
-		Use:   "test",
-		Short: "test related commands",
-	}
+	//var testCmd = &cobra.Command{
+	//	Use:   "test",
+	//	Short: "test related commands",
+	//}
 	//var displayArchivedCreated = func() {
 	//
 	//	b, table := newTable()
@@ -463,7 +463,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 	cli.AddCommand(printCmd)
 	cli.AddCommand(repeatCmd)
 	cli.AddCommand(sleepCmd)
-	cli.AddCommand(testCmd)
+	//cli.AddCommand(testCmd)
 	cli.AddCommand(waitCmd)
 	cli.AddCommand(waitForCmd)
 }

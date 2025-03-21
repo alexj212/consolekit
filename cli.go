@@ -108,7 +108,7 @@ func (c *CLI) AddCommand(cmd *cobra.Command) {
 }
 
 func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
-	fmt.Printf("ReplaceDefaults: %s\n", input)
+	//fmt.Printf("ReplaceDefaults: %s\n", input)
 	c.Defaults.ForEach(func(k string, v string) bool {
 
 		input = strings.ReplaceAll(input, k, v)
@@ -129,7 +129,7 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 			words[i] = c.replaceToken(cmd, word)
 		}
 	}
-	fmt.Printf("ReplaceDefaults done: %s\n", strings.Join(words, " "))
+	//fmt.Printf("ReplaceDefaults done: %s\n", strings.Join(words, " "))
 	return strings.Join(words, " ")
 } //ReplaceDefaults
 
