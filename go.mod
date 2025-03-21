@@ -23,7 +23,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rsteube/carapace v0.50.2 // indirect
 	github.com/rsteube/carapace-shlex v0.1.2 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	mvdan.cc/sh/v3 v3.10.0 // indirect
+	mvdan.cc/sh/v3 v3.11.0 // indirect
 )
