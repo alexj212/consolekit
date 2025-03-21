@@ -51,7 +51,7 @@ func SetRecursiveHelpFunc(cmd *cobra.Command) {
 func ResetHelpFlag(cmd *cobra.Command) {
 	helpFlag := cmd.Flags().Lookup("help")
 	if helpFlag != nil && helpFlag.Changed {
-		helpFlag.Value.Set("false")
+		_ = helpFlag.Value.Set("false")
 		helpFlag.Changed = false
 	}
 }
@@ -74,7 +74,7 @@ func (c *CLI) AppBlock() error {
 // readline receives an io.EOF error, which is returned with CtrlD.
 func (c *CLI) ExitCtrlD(conc *console.Console) {
 	reader := bufio.NewReader(os.Stdin)
-	conc.Printf("Confirm exit (Y/y): ")
+	_, _ = conc.Printf("Confirm exit (Y/y): ")
 	text, _ := reader.ReadString('\n')
 	answer := strings.TrimSpace(text)
 
@@ -89,7 +89,7 @@ func (c *CLI) Exit(caller string, code int) {
 	}
 
 	if code != 0 {
-		c.Repl.Printf("%s: exiting with code %d\n", caller, code)
+		_, _ = c.Repl.Printf("%s: exiting with code %d\n", caller, code)
 	}
 	time.Sleep(250 * time.Millisecond)
 	os.Exit(code)

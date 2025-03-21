@@ -84,4 +84,4 @@ With comments
 Contributions are welcome! Feel free to submit issues or pull requests to help improve **ConsoleKit**.
 
 ## License
-**ConsoleKit** is licensed under the [MIT License](LICENSE).
+**ConsoleKit** is licensed under the [MIT License]().

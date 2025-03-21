@@ -92,7 +92,7 @@ func AddMisc(cli *CLI) {
 
 	var envCmd = &cobra.Command{
 		Use:   "env [key]",
-		Short: "Displays environemnt variables and also specific var.",
+		Short: "Displays environment variables and also specific var.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			if len(args) == 0 {

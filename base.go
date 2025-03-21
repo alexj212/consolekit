@@ -312,15 +312,33 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			return nil
 		},
 	}
-
 	// defaultCmd sets a default value for a script param.
 	var defaultCmd = &cobra.Command{
-		Use:     "default {token} {value}",
-		Short:   "sets a default value for a script param.",
-		Example: ` default default_user mario`,
-		Aliases: []string{"def", "block"},
-		Args:    cobra.ExactArgs(2),
+		Use:     "set [token [value] ]",
+		Short:   "set or view default values. If no token is provides, will list all defaults tokens out. If no value is provided, it will print the current default value.",
+		Aliases: []string{"default", "def", "block", "set"},
+
 		Run: func(cmd *cobra.Command, args []string) {
+
+			if len(args) == 0 {
+				cmd.Printf("defaults: %d\n", cli.Defaults.Len())
+				cli.Defaults.ForEach(func(s string, s2 string) bool {
+					cmd.Printf("%s\n", s)
+					return false
+				})
+				return
+			}
+
+			if len(args) == 1 {
+				val, ok := cli.Defaults.Get(args[0])
+				if !ok {
+					cmd.Printf("default not found: %s\n", args[0])
+					return
+				}
+				cmd.Printf("default: %s = %s\n", args[0], val)
+				return
+			}
+
 			if strings.HasPrefix(args[0], "@") {
 				cmd.Printf("default cannot start with @\n")
 				return
@@ -333,13 +351,12 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 			_, ok := cli.Defaults.Get(key)
 			if ok {
-				cmd.Printf("default already set: %s = %s\n", key, value)
-				return
+				cmd.Printf("overwriting default: %s\n", key)
+			} else {
+				cmd.Printf("setting default: %s\n", key)
 			}
-
 			value = cli.ReplaceDefaults(cmd, value)
 			cli.Defaults.Set(key, value)
-			cmd.Printf("default set: %s = %s\n", key, value)
 		},
 	}
 
@@ -425,19 +442,5 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 	cli.AddCommand(sleepCmd)
 	cli.AddCommand(waitCmd)
 	cli.AddCommand(waitForCmd)
-
-	// defaultCmd sets a default value for a script param.
-	var defaultsCmd = &cobra.Command{
-		Use:   "defaults",
-		Short: "list defaults",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("defaults: %d\n", cli.Defaults.Len())
-			cli.Defaults.ForEach(func(s string, s2 string) bool {
-				cmd.Printf("%s = %s\n", s, s2)
-				return false
-			})
-		},
-	}
-	cli.AddCommand(defaultsCmd)
 
 }
