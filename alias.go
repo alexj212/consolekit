@@ -16,16 +16,27 @@ func AddAlias(cli *CLI) {
 	var aliases = safemap.New[string, string]()
 
 	cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {
+		//fmt.Printf("AddAlias arg len: %d\n", len(args))
 
 		if len(args) > 0 {
 			line, ok := aliases.Get(args[0])
 			if ok {
-				sp, err := shellquote.Split(line)
-				if err == nil {
-					args = append(sp, args[1:]...)
-				}
+				args[0] = line
 			}
 		}
+		line := strings.Join(args, " ")
+		args, err := shellquote.Split(line)
+		if err != nil {
+			return args, err
+		}
+
+		for i, arg := range args {
+			if strings.Contains(arg, " ") {
+				args[i] = "\"" + arg + "\"" // this is to prevent the shell from splitting the arg
+			}
+		}
+
+		//fmt.Printf("AddAlias arg len after: %d\n", len(args))
 		return args, nil
 	})
 

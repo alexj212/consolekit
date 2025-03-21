@@ -57,10 +57,12 @@ func AddBaseCmds(cli *CLI) {
 	}
 
 	var printCmd = &cobra.Command{
-		Use:     "print {message}",
-		Short:   "print message",
-		Aliases: []string{"p", "echo"},
-		Run:     printCmdFunc,
+		Use:                "print {message}",
+		Short:              "print message",
+		Aliases:            []string{"p", "echo"},
+		Run:                printCmdFunc,
+		DisableFlagParsing: true,
+		DisableSuggestions: true,
 	}
 
 	var dateCmdFunc = func(cmd *cobra.Command, args []string) {
