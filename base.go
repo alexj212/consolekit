@@ -1,9 +1,7 @@
 package consolekit
 
 import (
-	"bytes"
 	"fmt"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"io"
 	"net/http"
@@ -53,6 +51,7 @@ func AddBaseCmds(cli *CLI) {
 		line := strings.Join(args, " ")
 
 		line = cli.ReplaceDefaults(cmd, line)
+
 		cmd.Printf("%s\n", line)
 	}
 
@@ -117,15 +116,6 @@ func AddBaseCmds(cli *CLI) {
 		Run:   httpCmdFunc,
 		Args:  cobra.ExactArgs(1),
 	}
-
-	//var LocalCmd = &cobra.Command{
-	//	Use:   "local",
-	//	Short: "switch to local mode",
-	//	Run: func(cmd *cobra.Command, args []string) {
-	//
-	//	},
-	//	Args: cobra.ExactArgs(0),
-	//}
 
 	var sleepCmd = &cobra.Command{
 		Use:     "sleep {secs}",
@@ -214,7 +204,7 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				for count == -1 || i < count {
 
 					cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
-					res, err := cli.Repl.ExecuteLine(cmdLine)
+					res, err := cli.ExecuteLine(cmdLine)
 					if err != nil {
 						cmd.Printf("Error executing command: %s err: %v\n", cmdLine, err)
 						continue
@@ -331,14 +321,23 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		Aliases: []string{"def", "block"},
 		Args:    cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
+			if strings.HasPrefix(args[0], "@") {
+				cmd.Printf("default cannot start with @\n")
+				return
+			}
+
 			key := args[0]
 			value := args[1]
+
 			key = fmt.Sprintf("@%s", key)
+
 			_, ok := cli.Defaults.Get(key)
 			if ok {
 				cmd.Printf("default already set: %s = %s\n", key, value)
 				return
 			}
+
+			value = cli.ReplaceDefaults(cmd, value)
 			cli.Defaults.Set(key, value)
 			cmd.Printf("default set: %s = %s\n", key, value)
 		},
@@ -357,7 +356,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 			ifTrue = cli.ReplaceDefaults(cmd, ifTrue)
 			cmd.Printf("running if_false: `%s`\n", ifTrue)
-			res, err := cli.Repl.ExecuteLine(ifTrue)
+			res, err := cli.ExecuteLine(ifTrue)
 			if err != nil {
 				cmd.Printf("Error executing command: %s err: %v\n", ifTrue, err)
 				return
@@ -371,7 +370,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 			ifFalse = cli.ReplaceDefaults(cmd, ifFalse)
 			cmd.Printf("running if_false: `%s`\n", ifFalse)
-			res, err := cli.Repl.ExecuteLine(ifFalse)
+			res, err := cli.ExecuteLine(ifFalse)
 			if err != nil {
 				cmd.Printf("Error executing ifFalse: %s err: %v\n", ifFalse, err)
 				return
@@ -390,45 +389,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		Args:  cobra.ExactArgs(2),
 		Run:   IfCmdFunc,
 	}
-
-	//var testCmd = &cobra.Command{
-	//	Use:   "test",
-	//	Short: "test related commands",
-	//}
-	//var displayArchivedCreated = func() {
-	//
-	//	b, table := newTable()
-	//	table.SetRowLine(true)
-	//	table.SetHeaderLine(true)
-	//	table.SetBorder(false)
-	//
-	//	table.SetHeader([]string{"ID", "protocol", "records", "elapsed", "filename"})
-	//
-	//	for i, a := range utils.Archives() {
-	//		active := "  "
-	//		if a.Active() {
-	//			active = "* "
-	//		}
-	//		row := []string{
-	//			fmt.Sprintf("@%d", i),
-	//			fmt.Sprintf("%v", a.ProtocolType()),
-	//			fmt.Sprintf("%s%d", active, a.Recs()),
-	//			fmt.Sprintf("%s", paltalk.HumanizeDuration(a.Elapsed(), true)),
-	//			a.Filename(),
-	//		}
-	//
-	//		lineColor := tablewriter.FgGreenColor
-	//
-	//		if !a.Active() {
-	//			lineColor = tablewriter.FgYellowColor
-	//		}
-	//		appendRow(table, row, lineColor)
-	//	}
-	//
-	//	table.Render()
-	//	Printf("%s\n", b.String())
-	//	Printf("\n%d archives\n", len(utils.Archives()))
-	//}
 
 	// Set up flags for each command
 	waitCmd.Flags().StringP("time", "t", "", "Time to wait until in HH:MM format (24-hour)")
@@ -463,33 +423,21 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 	cli.AddCommand(printCmd)
 	cli.AddCommand(repeatCmd)
 	cli.AddCommand(sleepCmd)
-	//cli.AddCommand(testCmd)
 	cli.AddCommand(waitCmd)
 	cli.AddCommand(waitForCmd)
-}
 
-func newTable() (*bytes.Buffer, *tablewriter.Table) {
-	b := &bytes.Buffer{}
-	table := tablewriter.NewWriter(b)
-	table.SetAutoWrapText(false)
-	table.SetReflowDuringAutoWrap(false)
-	table.SetRowLine(true)
-	return b, table
-}
-
-func appendRow(cli *CLI, table *tablewriter.Table, row []string, lineColor int) {
-	if cli.NoColor {
-		table.Append(row)
-	} else {
-		table.Rich(row, RowColor(row, lineColor))
+	// defaultCmd sets a default value for a script param.
+	var defaultsCmd = &cobra.Command{
+		Use:   "defaults",
+		Short: "list defaults",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Printf("defaults: %d\n", cli.Defaults.Len())
+			cli.Defaults.ForEach(func(s string, s2 string) bool {
+				cmd.Printf("%s = %s\n", s, s2)
+				return false
+			})
+		},
 	}
-}
+	cli.AddCommand(defaultsCmd)
 
-func RowColor(row []string, color int) []tablewriter.Colors {
-	clrs := make([]tablewriter.Colors, len(row))
-	for i := range row {
-		clrs[i] = make(tablewriter.Colors, 0)
-		clrs[i] = append(clrs[i], color)
-	}
-	return clrs
 }

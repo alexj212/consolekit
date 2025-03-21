@@ -102,10 +102,10 @@ func AddRun(cli *CLI, scripts embed.FS) {
 					continue
 				}
 
-				cmdLine = cli.ReplaceDefaults(nil, cmdLine)
+				cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
 
 				cmd.Printf("doExec: %s\n", cmdLine)
-				res, err := cli.Repl.ExecuteLine(cmdLine)
+				res, err := cli.ExecuteLine(cmdLine)
 				cmd.Printf("res %s\n", res)
 				if err != nil {
 					cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
@@ -169,39 +169,6 @@ func AddRun(cli *CLI, scripts embed.FS) {
 
 	runScriptCmd.Flags().BoolVarP(new(bool), "spawn", "", false, "run script in background")
 }
-
-//func ExecRaw(cmd *cobra.Command, cmdLine string) error {
-//	cmd.Printf("Executing ExecRaw: %s\n", cmdLine)
-//	if strings.HasPrefix(cmdLine, "##") {
-//		msg := strings.TrimPrefix(cmdLine, "##")
-//		cmd.Printf("%s\n", msg)
-//		return nil
-//	}
-//	if cmdLine == "" || strings.HasPrefix(cmdLine, "#") {
-//		return nil
-//	}
-//
-//	cmd.Printf("Executing cmd: %s\n", cmdLine)
-//	cmds := strings.Split(cmdLine, "\n")
-//	for _, execCmd := range cmds {
-//
-//		cmdLineArgs, err := shellquote.Split(execCmd)
-//		if err != nil {
-//			cmd.Printf(cli.ErrorString("error splitting, `%s`, %s\n", execCmd, err))
-//			return err
-//		}
-//
-//		cmd.Printf("\n----------------------------------------\n")
-//		cmd.Printf("cmd: %s\n\n", execCmd)
-//
-//		cli.RootCmd.SetArgs(cmdLineArgs)
-//		if err := cli.RootCmd.Execute(); err != nil {
-//			cmd.Printf(cli.ErrorString("execute `%s`, command: %s, error %s\n", cli.RootCmd.Name(), execCmd, err))
-//			return err
-//		}
-//	}
-//	return nil
-//}
 
 func HumanizeDuration(duration time.Duration, showMs bool) string {
 	ms := duration.Milliseconds() % 1000

@@ -27,6 +27,7 @@ func AddMisc(cli *CLI) {
 			return nil
 		},
 	}
+
 	cli.AddCommand(catCmd)
 	var grepCmd = &cobra.Command{
 		Use:   "grep [--inverse | -v] [--insensitive | -i] {expression}",

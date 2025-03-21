@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/alexj212/console/parser"
 	"github.com/alexj212/consolekit/safemap"
 	"github.com/fatih/color"
 	"regexp"
@@ -123,19 +124,20 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 		if strings.HasPrefix(word, `"@`) {
 			// Remove quotes, replace token, then re-wrap with quotes
 			cleanWord := strings.Trim(word, `"`)
-			words[i] = `"` + c.replaceToken(cmd, cleanWord) + `"`
+			words[i] = `"` + c.ReplaceToken(cmd, cleanWord) + `"`
 		} else if strings.HasPrefix(word, "@") {
 			// Replace token directly if not in quotes
-			words[i] = c.replaceToken(cmd, word)
+			words[i] = c.ReplaceToken(cmd, word)
 		}
 	}
 	//fmt.Printf("ReplaceDefaults done: %s\n", strings.Join(words, " "))
 	return strings.Join(words, " ")
 } //ReplaceDefaults
 
-// replaceToken handles token replacement. Modify this function as needed.
-func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
-
+// ReplaceToken handles token replacement. Modify this function as needed.
+func (c *CLI) ReplaceToken(cmd *cobra.Command, token string) string {
+	//cmd.Printf("ReplaceToken: %s\n", token)
+	//cmd.Printf("\n")
 	if strings.HasPrefix(token, "@env:") {
 		envVar := strings.TrimPrefix(token, "@env:")
 		if value, exists := os.LookupEnv(envVar); exists {
@@ -144,10 +146,25 @@ func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
 		return token
 	}
 
+	if strings.HasPrefix(token, "@exec:") {
+		toExec := strings.TrimPrefix(token, "@exec:")
+		//fmt.Printf("exec: %s\n", toExec)
+		res, _ := c.ExecuteLine(toExec)
+		//fmt.Printf("exec result: %s\n", res)
+		return res
+	}
+
 	v, ok := c.Defaults.Get(token)
 	if ok {
-		cmd.Printf("replaceToken: %s -> %s\n", token, v)
 		return v
 	}
 	return token
+}
+
+func (c *CLI) ExecuteLine(line string) (string, error) {
+	_, commands, err := parser.ParseCommands(line)
+	if err != nil {
+		return "", err
+	}
+	return c.Repl.ExecuteCommand(c.RootCmd, commands)
 }
