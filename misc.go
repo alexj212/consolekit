@@ -88,4 +88,34 @@ func AddMisc(cli *CLI) {
 	grepCmd.Flags().BoolP("insensitive", "i", false, "Case insensitive match")
 
 	cli.AddCommand(grepCmd)
+
+	var envCmd = &cobra.Command{
+		Use:   "env [key]",
+		Short: "Displays environemnt variables and also specific var.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			if len(args) == 0 {
+				envKv := os.Environ()
+				for _, kv := range envKv {
+					parts := strings.Split(kv, "=")
+					if len(parts) == 2 {
+						cmd.Printf("%-30s %s\n", parts[0], parts[1])
+						continue
+					}
+					cmd.Printf("%-30s\n", parts[0])
+				}
+				return nil
+			}
+
+			val, ok := os.LookupEnv(args[0])
+			if !ok {
+				return fmt.Errorf("environment variable %s not found", args[0])
+			}
+			parts := strings.Split(val, "=")
+			cmd.Printf("%-30s %s\n", parts[0], parts[1])
+			return nil
+		},
+	}
+	cli.AddCommand(envCmd)
+
 }
