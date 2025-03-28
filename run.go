@@ -14,160 +14,163 @@ import (
 	"strings"
 )
 
-func AddRun(cli *CLI, scripts embed.FS) {
+func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 
-	var viewScriptCmdFunc = func(cmd *cobra.Command, args []string) {
+	return func(rootCmd *cobra.Command) {
 
-		if args[0] == "@" {
-			f, err := cli.Scripts.ReadDir(".")
-			if err != nil {
-				cmd.Printf("Error reading scripts: %v\n", err)
+		var viewScriptCmdFunc = func(cmd *cobra.Command, args []string) {
+
+			if args[0] == "@" {
+				f, err := scripts.ReadDir(".")
+				if err != nil {
+					cmd.Printf("Error reading scripts: %v\n", err)
+					return
+				}
+
+				cmd.Printf("Scripts Available:\n")
+				for _, script := range f {
+					if strings.HasSuffix(script.Name(), ".go") {
+						continue
+					}
+					cmd.Printf("@%s\n", script.Name())
+				}
 				return
 			}
 
-			cmd.Printf("Scripts Available:\n")
-			for _, script := range f {
-				if strings.HasSuffix(script.Name(), ".go") {
-					continue
-				}
-				cmd.Printf("@%s\n", script.Name())
-			}
-			return
-		}
-
-		cmds, err := LoadScript(scripts, cmd, args[0])
-		if err != nil {
-			cmd.Printf(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
-			return
-		}
-
-		cmd.Printf("Script file: %s - %d commands\n", args[0], len(cmds))
-		for _, cmdLine := range cmds {
-			if cmdLine == "" {
-				continue
-			}
-			cmdLine = strings.TrimSpace(cmdLine)
-			cmd.Printf("%s\n", cmdLine)
-		}
-	}
-	var viewScriptCmd = &cobra.Command{
-		Use:     "vs {file | @}",
-		Aliases: []string{"view-script"},
-		Short:   "view script file, pass @ to list all scripts",
-		Args:    cobra.ExactArgs(1),
-
-		Run: viewScriptCmdFunc,
-	}
-
-	var runScriptCmdFunc = func(cmd *cobra.Command, args []string) {
-		for i, arg := range args[1:] {
-			cli.Defaults.Set(fmt.Sprintf("@arg%d", i), arg)
-		}
-
-		if args[0] == "@" {
-			f, err := scripts.ReadDir(".")
+			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Printf("Error reading scripts: %v\n", err)
+				cmd.Printf(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
 				return
 			}
 
-			cmd.Printf("Scripts Available:\n")
-			for _, script := range f {
-				if strings.HasSuffix(script.Name(), ".go") {
-					continue
-				}
-				cmd.Printf("@%s\n", script.Name())
-			}
-			return
-		}
-
-		cmds, err := LoadScript(scripts, cmd, args[0])
-		if err != nil {
-			cmd.Printf(cli.ErrorString("error loading file %s, %s\n", args[0], err))
-			return
-		}
-
-		spawn, err := cmd.Flags().GetBool("spawn")
-		if err != nil {
-			cmd.Printf(cli.ErrorString("unable to get flag spawn, %v\n", err))
-			return
-		}
-
-		doExec := func() {
-			startTime := time.Now()
-			cmd.Printf("Executing file: %s - %d commands\n", args[0], len(cmds))
-
+			cmd.Printf("Script file: %s - %d commands\n", args[0], len(cmds))
 			for _, cmdLine := range cmds {
 				if cmdLine == "" {
 					continue
 				}
+				cmdLine = strings.TrimSpace(cmdLine)
+				cmd.Printf("%s\n", cmdLine)
+			}
+		}
+		var viewScriptCmd = &cobra.Command{
+			Use:     "vs {file | @}",
+			Aliases: []string{"view-script"},
+			Short:   "view script file, pass @ to list all scripts",
+			Args:    cobra.ExactArgs(1),
 
-				cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
+			Run: viewScriptCmdFunc,
+		}
 
-				cmd.Printf("doExec: %s\n", cmdLine)
-				res, err := cli.ExecuteLine(cmdLine)
-				cmd.Printf("res %s\n", res)
+		var runScriptCmdFunc = func(cmd *cobra.Command, args []string) {
+			for i, arg := range args[1:] {
+				cli.Defaults.Set(fmt.Sprintf("@arg%d", i), arg)
+			}
+
+			if args[0] == "@" {
+				f, err := scripts.ReadDir(".")
 				if err != nil {
-					cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
-					break
+					cmd.Printf("Error reading scripts: %v\n", err)
+					return
 				}
+
+				cmd.Printf("Scripts Available:\n")
+				for _, script := range f {
+					if strings.HasSuffix(script.Name(), ".go") {
+						continue
+					}
+					cmd.Printf("@%s\n", script.Name())
+				}
+				return
 			}
-			elapsed := time.Since(startTime)
-			timeSince := HumanizeDuration(elapsed, false)
-			cmd.Printf("script `%s` - Execution time: %s\n", args[0], timeSince)
-		}
 
-		if spawn {
-			go doExec()
-			return
-		}
-		doExec()
-	}
-
-	var runScriptCmd = &cobra.Command{
-		Use:   "run [--spawn] {file | @file | @ } [args]...",
-		Short: "exec script file, use `@name` files for internal scripts. pass args that can be referenced in script as @arg0, @arg1, ...",
-		Args:  cobra.MinimumNArgs(1),
-		PostRun: func(cmd *cobra.Command, args []string) {
-			ResetHelpFlagRecursively(cmd)
-			ResetAllFlags(cmd)
-		},
-
-		Run: runScriptCmdFunc,
-	}
-
-	var spawnScriptCmdFunc = func(cmd *cobra.Command, args []string) {
-
-		go func() {
-			cmdLine := strings.Join(args, " ")
-			cmdLineArgs, err := shellquote.Split(cmdLine)
+			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Printf(cli.ErrorString("error splitting cmd `%s`, %s\n", cmdLine, err))
+				cmd.Printf(cli.ErrorString("error loading file %s, %s\n", args[0], err))
 				return
 			}
-			cmd.Printf("spawn cmd: %s | %s\n", cli.RootCmd.Use, cmdLine)
-			cli.RootCmd.SetArgs(cmdLineArgs)
-			if err := cli.RootCmd.Execute(); err != nil {
-				cmd.Printf(cli.ErrorString("error %s executing command: %s, %s\n", cli.RootCmd.Name(), cmdLine, err))
+
+			spawn, err := cmd.Flags().GetBool("spawn")
+			if err != nil {
+				cmd.Printf(cli.ErrorString("unable to get flag spawn, %v\n", err))
 				return
 			}
-		}()
 
+			doExec := func() {
+				startTime := time.Now()
+				cmd.Printf("Executing file: %s - %d commands\n", args[0], len(cmds))
+
+				for _, cmdLine := range cmds {
+					if cmdLine == "" {
+						continue
+					}
+
+					cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
+
+					cmd.Printf("doExec: %s\n", cmdLine)
+					res, err := cli.ExecuteLine(cmdLine)
+					cmd.Printf("res %s\n", res)
+					if err != nil {
+						cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
+						break
+					}
+				}
+				elapsed := time.Since(startTime)
+				timeSince := HumanizeDuration(elapsed, false)
+				cmd.Printf("script `%s` - Execution time: %s\n", args[0], timeSince)
+			}
+
+			if spawn {
+				go doExec()
+				return
+			}
+			doExec()
+		}
+
+		var runScriptCmd = &cobra.Command{
+			Use:   "run [--spawn] {file | @file | @ } [args]...",
+			Short: "exec script file, use `@name` files for internal scripts. pass args that can be referenced in script as @arg0, @arg1, ...",
+			Args:  cobra.MinimumNArgs(1),
+			PostRun: func(cmd *cobra.Command, args []string) {
+				ResetHelpFlagRecursively(cmd)
+				ResetAllFlags(cmd)
+			},
+
+			Run: runScriptCmdFunc,
+		}
+
+		var spawnScriptCmdFunc = func(cmd *cobra.Command, args []string) {
+
+			go func() {
+				cmdLine := strings.Join(args, " ")
+				cmdLineArgs, err := shellquote.Split(cmdLine)
+				if err != nil {
+					cmd.Printf(cli.ErrorString("error splitting cmd `%s`, %s\n", cmdLine, err))
+					return
+				}
+				cmd.Printf("spawn cmd: %s | %s\n", rootCmd.Use, cmdLine)
+				rootCmd.SetArgs(cmdLineArgs)
+				if err := rootCmd.Execute(); err != nil {
+					cmd.Printf(cli.ErrorString("error %s executing command: %s, %s\n", rootCmd.Name(), cmdLine, err))
+					return
+				}
+			}()
+
+		}
+
+		var spawnScriptCmd = &cobra.Command{
+			Use:   "spawn {cmd}",
+			Short: "exec command",
+			Args:  cobra.ExactArgs(1),
+
+			Run: spawnScriptCmdFunc,
+		}
+
+		rootCmd.AddCommand(viewScriptCmd)
+		rootCmd.AddCommand(runScriptCmd)
+		rootCmd.AddCommand(spawnScriptCmd)
+
+		runScriptCmd.Flags().BoolVarP(new(bool), "spawn", "", false, "run script in background")
 	}
-
-	var spawnScriptCmd = &cobra.Command{
-		Use:   "spawn {cmd}",
-		Short: "exec command",
-		Args:  cobra.ExactArgs(1),
-
-		Run: spawnScriptCmdFunc,
-	}
-
-	cli.AddCommand(viewScriptCmd)
-	cli.AddCommand(runScriptCmd)
-	cli.AddCommand(spawnScriptCmd)
-
-	runScriptCmd.Flags().BoolVarP(new(bool), "spawn", "", false, "run script in background")
 }
 
 func HumanizeDuration(duration time.Duration, showMs bool) string {

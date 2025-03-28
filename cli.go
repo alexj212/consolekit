@@ -1,12 +1,14 @@
 package consolekit
 
 import (
+	"bytes"
 	"embed"
 	"errors"
 	"fmt"
 	"github.com/alexj212/console/parser"
 	"github.com/alexj212/consolekit/safemap"
 	"github.com/fatih/color"
+	"github.com/spf13/pflag"
 	"regexp"
 
 	"github.com/mattn/go-isatty"
@@ -23,8 +25,9 @@ import (
 )
 
 type CLI struct {
-	NoColor     bool
-	RootCmd     *cobra.Command
+	NoColor bool
+	//rootCmd     *cobra.Command
+	rootInit    []func(c *cobra.Command)
 	Repl        *console.Console
 	LocalMenu   *console.Menu
 	LocalPrompt *console.Prompt
@@ -44,11 +47,7 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		Defaults:    safemap.New[string, string](),
 	}
 
-	cli.RootCmd = &cobra.Command{
-		Use:                "",
-		Short:              "modular consolekit",
-		DisableFlagParsing: true,
-	}
+	//cli.cmdBuilders = []func() *cobra.Command{}
 	cli.Repl = console.New(AppName)
 
 	console.DisableParse = true
@@ -79,9 +78,9 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 	cli.LocalMenu.AddHistorySourceFile(fmt.Sprintf("%s-local", cli.AppName), filePath)
 	cli.LocalMenu.AddInterrupt(io.EOF, cli.ExitCtrlD)
 	cli.LocalMenu.AddInterrupt(errors.New(os.Interrupt.String()), cli.ExitCtrlD)
-	cli.LocalMenu.SetCommands(func() *cobra.Command { return cli.RootCmd })
+	rootcmd := cli.BuildRootCmd()
+	cli.LocalMenu.SetCommands(rootcmd)
 
-	SetRecursiveHelpFunc(cli.RootCmd)
 	cli.LocalPrompt = cli.LocalMenu.Prompt()
 
 	cli.LocalPrompt.Primary = func() string {
@@ -104,8 +103,8 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 	return cli, nil
 }
 
-func (c *CLI) AddCommand(cmd *cobra.Command) {
-	c.RootCmd.AddCommand(cmd)
+func (c *CLI) AddCommands(cmds func(*cobra.Command)) {
+	c.rootInit = append(c.rootInit, cmds)
 }
 
 func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
@@ -166,5 +165,64 @@ func (c *CLI) ExecuteLine(line string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return c.Repl.ExecuteCommand(c.RootCmd, commands)
+	//if c.rootCmd == nil {
+	rootCmd := c.BuildRootCmd()()
+	//}
+
+	return c.Repl.ExecuteCommand(rootCmd, commands)
+}
+
+func (c *CLI) BuildRootCmd() console.Commands {
+	return func() *cobra.Command {
+
+		rootCmd := &cobra.Command{
+			Use:                "",
+			Short:              "modular consolekit",
+			DisableFlagParsing: true,
+		}
+
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+
+		for _, init := range c.rootInit {
+			init(rootCmd)
+		}
+
+		SetRecursiveHelpFunc(rootCmd)
+		return rootCmd
+	}
+}
+
+// ExecuteCommand executes parsed commands using a Cobra root command with piped execution
+func ExecuteCommand(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
+
+	var output bytes.Buffer
+	var input io.Reader
+
+	for _, cmd := range commands {
+		var buf bytes.Buffer
+		curCmd := cmd
+
+		for curCmd != nil {
+			args := append([]string{curCmd.Cmd}, curCmd.Args...)
+
+			rootCmd.SetArgs(args)
+			rootCmd.SetOut(&buf)
+			rootCmd.SetErr(&buf)
+
+			if input != nil {
+				rootCmd.SetIn(input)
+			}
+
+			if err := rootCmd.Execute(); err != nil {
+				return "", err
+			}
+
+			input = &buf
+			curCmd = curCmd.Pipe
+		}
+
+		output.Write(buf.Bytes())
+	}
+
+	return output.String(), nil
 }

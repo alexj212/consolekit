@@ -29,12 +29,12 @@ var (
 
 func main() {
 	customizer := func(cli *consolekit.CLI) error {
-		consolekit.AddAlias(cli)
-		consolekit.AddExec(cli)
-		consolekit.AddHistory(cli)
-		consolekit.AddMisc(cli)
-		consolekit.AddBaseCmds(cli)
-		consolekit.AddRun(cli, Data)
+		cli.AddCommands(consolekit.AddAlias(cli))
+		cli.AddCommands(consolekit.AddExec(cli))
+		cli.AddCommands(consolekit.AddHistory(cli))
+		cli.AddCommands(consolekit.AddMisc(cli))
+		cli.AddCommands(consolekit.AddBaseCmds(cli))
+		cli.AddCommands(consolekit.AddRun(cli, Data))
 
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf("BuildDate    : %s\n", BuildDate)
@@ -50,7 +50,9 @@ func main() {
 			Short:   "Show version info",
 			Run:     verCmdFunc,
 		}
-		cli.AddCommand(verCmd)
+		cli.AddCommands(func(rootCmd *cobra.Command) {
+			rootCmd.AddCommand(verCmd)
+		})
 
 		return nil
 	}
