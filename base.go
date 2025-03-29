@@ -204,7 +204,6 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 					i := 0
 					for count == -1 || i < count {
 
-						cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
 						res, err := cli.ExecuteLine(cmdLine)
 						if err != nil {
 							cmd.Printf("Error executing command: %s err: %v\n", cmdLine, err)
@@ -372,7 +371,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			if ifTrue != "" && iff {
 				cmd.Printf("running if_true: `%s`\n", ifTrue)
 
-				ifTrue = cli.ReplaceDefaults(cmd, ifTrue)
 				cmd.Printf("running if_false: `%s`\n", ifTrue)
 				res, err := cli.ExecuteLine(ifTrue)
 				if err != nil {
@@ -386,7 +384,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			if ifFalse != "" && !iff {
 				cmd.Printf("running if_false: `%s`\n", ifFalse)
 
-				ifFalse = cli.ReplaceDefaults(cmd, ifFalse)
 				cmd.Printf("running if_false: `%s`\n", ifFalse)
 				res, err := cli.ExecuteLine(ifFalse)
 				if err != nil {

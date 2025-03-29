@@ -12,10 +12,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var aliases = safemap.New[string, string]()
+
 func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
-		var aliases = safemap.New[string, string]()
 
 		cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {
 			//fmt.Printf("AddAlias arg len: %d\n", len(args))
@@ -42,132 +43,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			return args, nil
 		})
 
-		saveAliases := func(cmd *cobra.Command) {
-			// Get the user's home directory
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				cmd.Printf(cli.ErrorString("error getting home directory, %v\n", err))
-				return
-			}
-
-			filePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", cli.AppName))
-
-			// Create or truncate the file
-			file, err := os.Create(filePath)
-			if err != nil {
-				cmd.Printf(cli.ErrorString("error creating `%s`, %v", filePath, err))
-				return
-			}
-			defer func() {
-				_ = file.Close()
-			}()
-
-			// Write each key-value pair to the file
-			writer := bufio.NewWriter(file)
-			aliases.ForEach(func(name string, value string) bool {
-				_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", name, value))
-				if err != nil {
-					cmd.Printf(cli.ErrorString("error writing to `%s`, %v", name, err))
-					return true
-				}
-				return false
-			})
-
-			// Flush the buffered writer to ensure all data is written
-			err = writer.Flush()
-			if err != nil {
-				cmd.Printf(cli.ErrorString("error flushing writer %v", err))
-				return
-			}
-			cmd.Printf("aliases saved to %s\n", filePath)
-		}
-		setupDefaultAliases := func(cmd *cobra.Command) {
-			aliases.Set("lsu", "service list user")
-			aliases.Set("s", "service list")
-			aliases.Set("lsp", "service list proto")
-			aliases.Set("lsx", "service list proxy")
-			aliases.Set("who", "remote 'who -r'")
-			aliases.Set("wbot", "remote 'who -r --bot'")
-			aliases.Set("bots", "remote 'who -r --bot'")
-			aliases.Set("wb", "remote 'who -r --bot'")
-			aliases.Set("w", "remote 'who -r'")
-			aliases.Set("expr", "client expr")
-			aliases.Set("abdicate", "remote 'system abdicate'")
-			aliases.Set("kill", "service kill --password=qaKillMenOw! --force ")
-			saveAliases(cmd)
-		}
-
-		loadAliases := func(cmd *cobra.Command, Name string) {
-			// Get the user's home directory
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				fmt.Printf(cli.ErrorString("unable to get home directory, %v\n", err))
-				return
-			}
-
-			// Construct the full path to the .aliases file
-
-			aliasesFilePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", Name))
-
-			// Open the .aliases file
-			file, err := os.Open(aliasesFilePath)
-			if err != nil {
-				fmt.Printf(cli.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
-				setupDefaultAliases(cmd)
-				return
-			}
-			defer func() {
-				_ = file.Close()
-			}()
-
-			// Read the file line by line
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				line := scanner.Text()
-
-				// Ignore empty lines and comments
-				if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
-					continue
-				}
-
-				// Split the line into name and value
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) != 2 {
-					fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
-					continue
-				}
-
-				name := strings.TrimSpace(parts[0])
-				if strings.Contains(name, " ") {
-					fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, name)
-					continue
-				}
-				value := strings.TrimSpace(parts[1])
-				if len(value) == 0 {
-					fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
-					continue
-				}
-
-				// here to replace the old password with the new one
-				value = strings.ReplaceAll(value, "tipTopMagoo", "KillMenOw")
-
-				aliases.Set(name, value)
-			}
-
-			// Check for scanner errors
-			if err := scanner.Err(); err != nil {
-				fmt.Printf("Error reading file: %v\n", err)
-				return
-			}
-
-			if aliases.Len() == 0 {
-				setupDefaultAliases(cmd)
-				fmt.Printf("No aliases found in %s, setting defaults.\n", aliasesFilePath)
-				return
-			}
-		}
-
-		loadAliases(rootCmd, cli.AppName)
+		cli.LoadAliases(rootCmd)
 
 		// aliasCmd represents the alias command
 		var aliasCmd = &cobra.Command{
@@ -185,7 +61,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Args:    cobra.ExactArgs(2),
 			Run: func(cmd *cobra.Command, args []string) {
 				aliases.Set(args[0], args[1])
-				saveAliases(cmd)
+				cli.SaveAliases(cmd)
 				cmd.Printf("Setting alias, `%s` command: `%s`\n", args[0], args[1])
 			},
 		}
@@ -197,7 +73,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Aliases: []string{"s"},
 			Args:    cobra.ExactArgs(0),
 			Run: func(cmd *cobra.Command, args []string) {
-				saveAliases(cmd)
+				cli.SaveAliases(cmd)
 			},
 		}
 
@@ -241,7 +117,6 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Long:    "Add default aliases",
 			Args:    cobra.ExactArgs(0),
 			Run: func(cmd *cobra.Command, args []string) {
-				setupDefaultAliases(cmd)
 				cmd.Printf("adding default aliases, current list\n")
 				aliasPrintCmd.Run(cmd, args)
 			},
@@ -258,7 +133,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 				alias := args[0]
 				cmd.Printf("removing alias `%s`\n", alias)
 				aliases.Delete(alias)
-				saveAliases(cmd)
+				cli.SaveAliases(cmd)
 
 			},
 		}
@@ -290,4 +165,129 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 		rootCmd.AddCommand(aliasCmd)
 
 	}
+}
+
+func (c *CLI) LoadAliases(cmd *cobra.Command) {
+	c.setupDefaultAliases(cmd)
+	// Get the user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf(c.ErrorString("unable to get home directory, %v\n", err))
+		return
+	}
+
+	// Construct the full path to the .aliases file
+
+	aliasesFilePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", c.AppName))
+
+	// Open the .aliases file
+	file, err := os.Open(aliasesFilePath)
+	if err != nil {
+		fmt.Printf(c.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
+		c.setupDefaultAliases(cmd)
+		return
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	// Read the file line by line
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Ignore empty lines and comments
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+
+		// Split the line into name and value
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
+			continue
+		}
+
+		name := strings.TrimSpace(parts[0])
+		if strings.Contains(name, " ") {
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, name)
+			continue
+		}
+		value := strings.TrimSpace(parts[1])
+		if len(value) == 0 {
+			fmt.Printf("Skipping invalid alias - file `%s` line: %s\n", aliasesFilePath, line)
+			continue
+		}
+
+		// here to replace the old password with the new one
+		value = strings.ReplaceAll(value, "tipTopMagoo", "KillMenOw")
+
+		aliases.Set(name, value)
+	}
+
+	// Check for scanner errors
+	if err := scanner.Err(); err != nil {
+		return
+	}
+
+	if aliases.Len() == 0 {
+		c.setupDefaultAliases(cmd)
+		return
+	}
+
+	//fmt.Printf("loaded %d aliases from %s.\n", aliases.Len(), aliasesFilePath)
+}
+
+func (c *CLI) setupDefaultAliases(cmd *cobra.Command) {
+	aliases.Set("lsu", "service list user")
+	aliases.Set("s", "service list")
+	aliases.Set("lsp", "service list proto")
+	aliases.Set("lsx", "service list proxy")
+	aliases.Set("who", "remote 'who -r'")
+	aliases.Set("wbot", "remote 'who -r --bot'")
+	aliases.Set("bots", "remote 'who -r --bot'")
+	aliases.Set("wb", "remote 'who -r --bot'")
+	aliases.Set("w", "remote 'who -r'")
+	aliases.Set("expr", "client expr")
+	aliases.Set("abdicate", "remote 'system abdicate'")
+	aliases.Set("kill", "service kill --password=qaKillMenOw! --force ")
+	c.SaveAliases(cmd)
+}
+
+func (c *CLI) SaveAliases(cmd *cobra.Command) error {
+	// Get the user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+
+		return err
+	}
+
+	filePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", c.AppName))
+
+	// Create or truncate the file
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	// Write each key-value pair to the file
+	writer := bufio.NewWriter(file)
+	aliases.ForEach(func(name string, value string) bool {
+		_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", name, value))
+		if err != nil {
+			cmd.Printf(c.ErrorString("error writing to `%s`, %v", name, err))
+			return true
+		}
+		return false
+	})
+
+	// Flush the buffered writer to ensure all data is written
+	err = writer.Flush()
+	if err != nil {
+		return err
+	}
+	return nil
 }

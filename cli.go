@@ -108,7 +108,14 @@ func (c *CLI) AddCommands(cmds func(*cobra.Command)) {
 }
 
 func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
-	//fmt.Printf("ReplaceDefaults: %s\n", input)
+	aliases.ForEach(func(k string, v string) bool {
+		if k == input {
+			input = v
+			return true
+		}
+		return false
+	})
+
 	c.Defaults.ForEach(func(k string, v string) bool {
 
 		input = strings.ReplaceAll(input, k, v)
@@ -129,7 +136,6 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 			words[i] = c.ReplaceToken(cmd, word)
 		}
 	}
-	//fmt.Printf("ReplaceDefaults done: %s\n", strings.Join(words, " "))
 	return strings.Join(words, " ")
 } //ReplaceDefaults
 
@@ -161,13 +167,13 @@ func (c *CLI) ReplaceToken(cmd *cobra.Command, token string) string {
 }
 
 func (c *CLI) ExecuteLine(line string) (string, error) {
+	rootCmd := c.BuildRootCmd()()
+	line = c.ReplaceDefaults(rootCmd, line)
+
 	_, commands, err := parser.ParseCommands(line)
 	if err != nil {
 		return "", err
 	}
-	//if c.rootCmd == nil {
-	rootCmd := c.BuildRootCmd()()
-	//}
 
 	return c.Repl.ExecuteCommand(rootCmd, commands)
 }

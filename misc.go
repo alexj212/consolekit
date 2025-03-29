@@ -11,7 +11,7 @@ import (
 )
 
 // AddMisc adds the commands echo and cat
-func AddMisc(cli *CLI) func(cmd *cobra.Command) {
+func AddMisc() func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 

@@ -104,8 +104,6 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 						continue
 					}
 
-					cmdLine = cli.ReplaceDefaults(cmd, cmdLine)
-
 					cmd.Printf("doExec: %s\n", cmdLine)
 					res, err := cli.ExecuteLine(cmdLine)
 					cmd.Printf("res %s\n", res)

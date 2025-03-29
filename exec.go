@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func AddExec(cli *CLI) func(cmd *cobra.Command) {
+func AddExec() func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 		// osexecCmd represents the exec command
