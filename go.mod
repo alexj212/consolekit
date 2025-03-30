@@ -5,7 +5,7 @@ go 1.23.6
 toolchain go1.24.0
 
 require (
-	github.com/alexj212/console v0.0.3
+	github.com/alexj212/console v0.0.5
 	github.com/fatih/color v1.18.0
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mattn/go-isatty v0.0.20
