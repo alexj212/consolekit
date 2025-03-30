@@ -74,55 +74,74 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			Short: "print date",
 			Run:   dateCmdFunc,
 		}
-		var FetchURLContent = func(url string) (string, error) {
+		var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) {
 			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 
 			} else {
 				url = "http://" + url
 			}
 
+			showHeader, _ := cmd.Flags().GetBool("show-headers")
+			showDetails, _ := cmd.Flags().GetBool("show-details")
+			showStatusCode, _ := cmd.Flags().GetBool("show-status_code")
+
 			// Make the HTTP GET request
 			resp, err := http.Get(url)
 			if err != nil {
-				return "", fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
+				return "", 0, fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
 			}
 			defer func() {
 				_ = resp.Body.Close()
 			}()
 
+			if showHeader {
+				cmd.Printf("headers: %d\n", len(resp.Header))
+				for k, v := range resp.Header {
+					cmd.Printf("  %-30s   %s\n", k, v)
+				}
+				cmd.Printf("%s\n", strings.Repeat("-", 80))
+			}
+			if showDetails || showStatusCode {
+				cmd.Printf("status code: %d\n\n", resp.StatusCode)
+			}
 			// Check if the HTTP status code is OK
 			if resp.StatusCode != http.StatusOK {
-				return "", fmt.Errorf("url: %v unexpected status code: %d", url, resp.StatusCode)
+				return "", resp.StatusCode, fmt.Errorf("url: %v unexpected status code: %d", url, resp.StatusCode)
 			}
 
 			// Read the response body
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				return "", fmt.Errorf("failed to read response body: %v", err)
+				return "", resp.StatusCode, fmt.Errorf("failed to read response body: %v", err)
+			}
+			if showDetails {
+				cmd.Printf("response len: %d\n", len(body))
 			}
 
 			// Return the body as a string
-			return string(body), nil
+			return string(body), resp.StatusCode, nil
 		}
 
 		var httpCmdFunc = func(cmd *cobra.Command, args []string) {
 
 			cmd.Printf("http call to %s\n", args[0])
-			data, err := FetchURLContent(args[0])
+			data, respCode, err := FetchURLContent(cmd, args[0])
 			if err != nil {
-				cmd.Printf("error fetching url: %v\n", err)
+				cmd.Printf("error fetching url: %v resp code: %d err: %v\n", args[0], respCode, err)
 				return
 			}
-			cmd.Printf("data: %s\n", data)
-
+			cmd.Printf("\n%s\n", data)
 		} //httpCmdFunc
 
 		var httpCmd = &cobra.Command{
 			Use:   "http {url}",
-			Short: "http call url",
+			Short: "http fetch url content",
 			Run:   httpCmdFunc,
 			Args:  cobra.ExactArgs(1),
 		}
+		httpCmd.Flags().BoolP("show-headers", "", false, "show headers")
+		httpCmd.Flags().BoolP("show-status_code", "", false, "show status_code")
+		httpCmd.Flags().BoolP("show-details", "", false, "show details")
 
 		var sleepCmd = &cobra.Command{
 			Use:     "sleep {secs}",

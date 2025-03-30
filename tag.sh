@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NEW_TAG="0.0.10"
+NEW_TAG="0.0.11"
 git tag -s "v${NEW_TAG}" -m "latest version: v${NEW_TAG}"
 git push -f origin "v${NEW_TAG}"
 
