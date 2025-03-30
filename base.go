@@ -51,7 +51,7 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 		var printCmdFunc = func(cmd *cobra.Command, args []string) {
 			line := strings.Join(args, " ")
 
-			line = cli.ReplaceDefaults(cmd, line)
+			line = cli.ReplaceDefaults(cmd, nil, line)
 
 			cmd.Printf("%s\n", line)
 		}
@@ -229,7 +229,7 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 					i := 0
 					for count == -1 || i < count {
 
-						res, err := cli.ExecuteLine(cmdLine)
+						res, err := cli.ExecuteLine(cmdLine, nil)
 						if err != nil {
 							cmd.Printf("Error executing command: %s err: %v\n", cmdLine, err)
 							continue
@@ -372,7 +372,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				key := args[0]
 				value := args[1]
 
-				value = cli.ReplaceDefaults(cmd, value)
+				value = cli.ReplaceDefaults(cmd, nil, value)
 
 				key = fmt.Sprintf("@%s", key)
 				overwrite, _ := cmd.Flags().GetBool("overwrite")
@@ -403,7 +403,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				cmd.Printf("running if_true: `%s`\n", ifTrue)
 
 				cmd.Printf("running if_false: `%s`\n", ifTrue)
-				res, err := cli.ExecuteLine(ifTrue)
+				res, err := cli.ExecuteLine(ifTrue, nil)
 				if err != nil {
 					cmd.Printf("Error executing command: %s err: %v\n", ifTrue, err)
 					return
@@ -416,7 +416,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				cmd.Printf("running if_false: `%s`\n", ifFalse)
 
 				cmd.Printf("running if_false: `%s`\n", ifFalse)
-				res, err := cli.ExecuteLine(ifFalse)
+				res, err := cli.ExecuteLine(ifFalse, nil)
 				if err != nil {
 					cmd.Printf("Error executing ifFalse: %s err: %v\n", ifFalse, err)
 					return

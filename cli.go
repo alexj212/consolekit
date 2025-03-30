@@ -106,14 +106,7 @@ func (c *CLI) AddCommands(cmds func(*cobra.Command)) {
 	c.rootInit = append(c.rootInit, cmds)
 }
 
-func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
-	for _, e := range c.TokenReplacers {
-		input, stop := e(input)
-		if stop {
-			//fmt.Printf("ReplaceDefaults A: %s\n", input)
-			return input
-		}
-	}
+func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, string], input string) string {
 
 	aliases.ForEach(func(k string, v string) bool {
 		if k == input {
@@ -129,22 +122,48 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 		return false
 	})
 
-	if strings.HasPrefix(input, "@env:") {
-		envVar := strings.TrimPrefix(input, "@env:")
-		if value, exists := os.LookupEnv(envVar); exists {
-			return value
+	for _, e := range c.TokenReplacers {
+		input, stop := e(input)
+		if stop {
+			fmt.Printf("ReplaceDefaults A: %s\n", input)
+			return input
 		}
-		return input
 	}
-
-	if strings.HasPrefix(input, "@exec:") {
-		toExec := strings.TrimPrefix(input, "@exec:")
-		res, _ := c.ExecuteLine(toExec)
-		return res
-	}
+	input = c.replaceToken(cmd, defs, input)
 	return input
 
-	//// Regular expression to split by spaces, but keep quoted sections intact
+	//args, err := shellquote.Split(input)
+	//if err == nil {
+	//	fmt.Printf("ReplaceDefaults A: %v\n", strings.Join(args, "##"))
+	//	for i, arg := range args {
+	//		if strings.HasPrefix(arg, "@") {
+	//			args[i] = c.replaceToken(cmd, arg)
+	//		}
+	//	}
+	//	fmt.Printf("ReplaceDefaults B: %s\n", shellquote.Join(args...))
+	//	return shellquote.Join(args...)
+	//}
+
+	//if strings.HasPrefix(input, "@env:") {
+	//	envVar := strings.TrimPrefix(input, "@env:")
+	//	if value, exists := os.LookupEnv(envVar); exists {
+	//		return value
+	//	}
+	//	return input
+	//}
+	//
+	//if strings.HasPrefix(input, "@exec:") {
+	//	toExec := strings.TrimPrefix(input, "@exec:")
+	//	res, err := c.ExecuteLine(toExec)
+	//	if err != nil {
+	//		cmd.Printf("ExecuteLine err: %s\n", err)
+	//		return input
+	//	}
+	//	return res
+	//}
+	//return input
+
+	// Regular expression to split by spaces, but keep quoted sections intact
 	//re := regexp.MustCompile(`"[^"]*"|\S+`)
 	//words := re.FindAllString(input, -1)
 	//
@@ -163,7 +182,7 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 } //ReplaceDefaults
 
 // replaceToken handles token replacement. Modify this function as needed.
-func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
+func (c *CLI) replaceToken(cmd *cobra.Command, defs *safemap.SafeMap[string, string], token string) string {
 	//cmd.Printf("ReplaceToken: %s\n", token)
 	//cmd.Printf("\n")
 	if strings.HasPrefix(token, "@env:") {
@@ -177,7 +196,7 @@ func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
 	if strings.HasPrefix(token, "@exec:") {
 		toExec := strings.TrimPrefix(token, "@exec:")
 		fmt.Printf("exec: %s\n", toExec)
-		res, _ := c.ExecuteLine(toExec)
+		res, _ := c.ExecuteLine(toExec, defs)
 		fmt.Printf("exec result: %s\n", res)
 		return res
 	}
@@ -186,12 +205,20 @@ func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
 	if ok {
 		return v
 	}
+
+	if defs != nil {
+		v, ok := defs.Get(token)
+		if ok {
+			return v
+		}
+	}
+
 	return token
 }
 
-func (c *CLI) ExecuteLine(line string) (string, error) {
+func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (string, error) {
 	rootCmd := c.BuildRootCmd()()
-	line = c.ReplaceDefaults(rootCmd, line)
+	line = c.ReplaceDefaults(rootCmd, defs, line)
 
 	//fmt.Printf("ExecuteLine : %s\n", line)
 	_, commands, err := parser.ParseCommands(line)

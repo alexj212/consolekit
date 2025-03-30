@@ -105,7 +105,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 					}
 
 					//cmd.Printf("doExec: %s\n", cmdLine)
-					res, err := cli.ExecuteLine(cmdLine)
+					res, err := cli.ExecuteLine(cmdLine, nil)
 					cmd.Printf("%s\n", res)
 					if err != nil {
 						cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
