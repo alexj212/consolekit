@@ -27,16 +27,17 @@ import (
 type CLI struct {
 	NoColor bool
 	//rootCmd     *cobra.Command
-	rootInit    []func(c *cobra.Command)
-	Repl        *console.Console
-	LocalMenu   *console.Menu
-	LocalPrompt *console.Prompt
-	AppName     string
-	OnExit      func(caller string, code int)
-	InfoString  func(format string, a ...any) string
-	ErrorString func(format string, a ...any) string
-	Scripts     embed.FS
-	Defaults    *safemap.SafeMap[string, string]
+	rootInit       []func(c *cobra.Command)
+	Repl           *console.Console
+	LocalMenu      *console.Menu
+	LocalPrompt    *console.Prompt
+	AppName        string
+	OnExit         func(caller string, code int)
+	InfoString     func(format string, a ...any) string
+	ErrorString    func(format string, a ...any) string
+	Scripts        embed.FS
+	Defaults       *safemap.SafeMap[string, string]
+	TokenReplacers []func(string) (string, bool)
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
@@ -108,6 +109,14 @@ func (c *CLI) AddCommands(cmds func(*cobra.Command)) {
 }
 
 func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
+	for _, e := range c.TokenReplacers {
+		input, stop := e(input)
+		if stop {
+			//fmt.Printf("ReplaceDefaults A: %s\n", input)
+			return input
+		}
+	}
+
 	aliases.ForEach(func(k string, v string) bool {
 		if k == input {
 			input = v
@@ -121,6 +130,7 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 		input = strings.ReplaceAll(input, k, v)
 		return false
 	})
+
 	// Regular expression to split by spaces, but keep quoted sections intact
 	re := regexp.MustCompile(`"[^"]*"|\S+`)
 	words := re.FindAllString(input, -1)
@@ -170,11 +180,14 @@ func (c *CLI) ExecuteLine(line string) (string, error) {
 	rootCmd := c.BuildRootCmd()()
 	line = c.ReplaceDefaults(rootCmd, line)
 
+	//fmt.Printf("ExecuteLine : %s\n", line)
 	_, commands, err := parser.ParseCommands(line)
 	if err != nil {
+		fmt.Printf("ExecuteLine ParseCommands err: %s\n", err)
 		return "", err
 	}
 
+	//fmt.Printf("commands: %d\n", len(commands))
 	return c.Repl.ExecuteCommand(rootCmd, commands)
 }
 

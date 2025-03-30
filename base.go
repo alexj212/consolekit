@@ -75,10 +75,16 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			Run:   dateCmdFunc,
 		}
 		var FetchURLContent = func(url string) (string, error) {
+			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+
+			} else {
+				url = "http://" + url
+			}
+
 			// Make the HTTP GET request
 			resp, err := http.Get(url)
 			if err != nil {
-				return "", fmt.Errorf("failed to fetch URL: %v", err)
+				return "", fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
 			}
 			defer func() {
 				_ = resp.Body.Close()
@@ -86,7 +92,7 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 
 			// Check if the HTTP status code is OK
 			if resp.StatusCode != http.StatusOK {
-				return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+				return "", fmt.Errorf("url: %v unexpected status code: %d", url, resp.StatusCode)
 			}
 
 			// Read the response body
@@ -323,7 +329,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				if len(args) == 0 {
 					cmd.Printf("defaults: %d\n", cli.Defaults.Len())
 					cli.Defaults.ForEach(func(s string, s2 string) bool {
-						cmd.Printf("%s\n", s)
+						cmd.Printf("    %-20s %s\n", s, s2)
 						return false
 					})
 					return
@@ -347,15 +353,21 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				key := args[0]
 				value := args[1]
 
-				key = fmt.Sprintf("@%s", key)
-
-				_, ok := cli.Defaults.Get(key)
-				if ok {
-					cmd.Printf("overwriting default: %s\n", key)
-				} else {
-					cmd.Printf("setting default: %s\n", key)
-				}
 				value = cli.ReplaceDefaults(cmd, value)
+
+				key = fmt.Sprintf("@%s", key)
+				overwrite, _ := cmd.Flags().GetBool("overwrite")
+				if overwrite {
+					cmd.Printf("overwriting default: %s value: %s\n", key, value)
+				} else {
+					_, ok := cli.Defaults.Get(key)
+					if ok {
+						cmd.Printf("default already set key: %s value: %s\n", key, value)
+						return
+					}
+					cmd.Printf("setting default: %s value: %s\n", key, value)
+				}
+
 				cli.Defaults.Set(key, value)
 			},
 		}
@@ -427,6 +439,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		ifCmd.Flags().String("if_na", "print test is not available", "command to run if not available")
 
 		rootCmd.AddCommand(ifCmd)
+		defaultCmd.Flags().BoolP("overwrite", "o", false, "overwrite default value")
 		rootCmd.AddCommand(defaultCmd)
 		rootCmd.AddCommand(waitForCmd)
 		rootCmd.AddCommand(checkCmd)
