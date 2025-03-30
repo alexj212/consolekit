@@ -8,10 +8,8 @@ import (
 	"github.com/alexj212/console/parser"
 	"github.com/alexj212/consolekit/safemap"
 	"github.com/fatih/color"
-	"github.com/spf13/pflag"
-	"regexp"
-
 	"github.com/mattn/go-isatty"
+	"github.com/spf13/pflag"
 	"io"
 	"os"
 	"os/user"
@@ -131,26 +129,41 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, input string) string {
 		return false
 	})
 
-	// Regular expression to split by spaces, but keep quoted sections intact
-	re := regexp.MustCompile(`"[^"]*"|\S+`)
-	words := re.FindAllString(input, -1)
-
-	for i, word := range words {
-		// Check for tokens inside quotes but retain quotes
-		if strings.HasPrefix(word, `"@`) {
-			// Remove quotes, replace token, then re-wrap with quotes
-			cleanWord := strings.Trim(word, `"`)
-			words[i] = `"` + c.ReplaceToken(cmd, cleanWord) + `"`
-		} else if strings.HasPrefix(word, "@") {
-			// Replace token directly if not in quotes
-			words[i] = c.ReplaceToken(cmd, word)
+	if strings.HasPrefix(input, "@env:") {
+		envVar := strings.TrimPrefix(input, "@env:")
+		if value, exists := os.LookupEnv(envVar); exists {
+			return value
 		}
+		return input
 	}
-	return strings.Join(words, " ")
+
+	if strings.HasPrefix(input, "@exec:") {
+		toExec := strings.TrimPrefix(input, "@exec:")
+		res, _ := c.ExecuteLine(toExec)
+		return res
+	}
+	return input
+
+	//// Regular expression to split by spaces, but keep quoted sections intact
+	//re := regexp.MustCompile(`"[^"]*"|\S+`)
+	//words := re.FindAllString(input, -1)
+	//
+	//for i, word := range words {
+	//	// Check for tokens inside quotes but retain quotes
+	//	if strings.HasPrefix(word, `"@`) {
+	//		// Remove quotes, replace token, then re-wrap with quotes
+	//		cleanWord := strings.Trim(word, `"`)
+	//		words[i] = `"` + c.replaceToken(cmd, cleanWord) + `"`
+	//	} else if strings.HasPrefix(word, "@") {
+	//		// Replace token directly if not in quotes
+	//		words[i] = c.replaceToken(cmd, word)
+	//	}
+	//}
+	//return strings.Join(words, " ")
 } //ReplaceDefaults
 
-// ReplaceToken handles token replacement. Modify this function as needed.
-func (c *CLI) ReplaceToken(cmd *cobra.Command, token string) string {
+// replaceToken handles token replacement. Modify this function as needed.
+func (c *CLI) replaceToken(cmd *cobra.Command, token string) string {
 	//cmd.Printf("ReplaceToken: %s\n", token)
 	//cmd.Printf("\n")
 	if strings.HasPrefix(token, "@env:") {
@@ -163,9 +176,9 @@ func (c *CLI) ReplaceToken(cmd *cobra.Command, token string) string {
 
 	if strings.HasPrefix(token, "@exec:") {
 		toExec := strings.TrimPrefix(token, "@exec:")
-		//fmt.Printf("exec: %s\n", toExec)
+		fmt.Printf("exec: %s\n", toExec)
 		res, _ := c.ExecuteLine(toExec)
-		//fmt.Printf("exec result: %s\n", res)
+		fmt.Printf("exec result: %s\n", res)
 		return res
 	}
 

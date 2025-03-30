@@ -377,14 +377,14 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				key = fmt.Sprintf("@%s", key)
 				overwrite, _ := cmd.Flags().GetBool("overwrite")
 				if overwrite {
-					cmd.Printf("overwriting default: %s value: %s\n", key, value)
+					cmd.Printf("overwriting default: %s\n", key)
 				} else {
 					_, ok := cli.Defaults.Get(key)
 					if ok {
-						cmd.Printf("default already set key: %s value: %s\n", key, value)
+						cmd.Printf("default already set key: %s\n", key)
 						return
 					}
-					cmd.Printf("setting default: %s value: %s\n", key, value)
+					cmd.Printf("setting default: %s\n", key)
 				}
 
 				cli.Defaults.Set(key, value)
