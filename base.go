@@ -28,6 +28,7 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			Long:  `Clear the screen`,
 			Run:   clsCmdFunc,
 		}
+		rootCmd.AddCommand(clsCmd)
 
 		var exitCmdFunc = func(cmd *cobra.Command, args []string) {
 			code := 0
@@ -47,6 +48,13 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			Args: cobra.MaximumNArgs(1),
 			Run:  exitCmdFunc,
 		}
+		rootCmd.AddCommand(exitCmd)
+	}
+}
+
+func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
+
+	return func(rootCmd *cobra.Command) {
 
 		var printCmdFunc = func(cmd *cobra.Command, args []string) {
 			line := strings.Join(args, " ")
@@ -64,6 +72,7 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			DisableFlagParsing: true,
 			DisableSuggestions: true,
 		}
+		rootCmd.AddCommand(printCmd)
 
 		var dateCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf("%s\n", time.Now().Format(time.RFC3339))
@@ -74,53 +83,8 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			Short: "print date",
 			Run:   dateCmdFunc,
 		}
-		var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) {
-			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 
-			} else {
-				url = "http://" + url
-			}
-
-			showHeader, _ := cmd.Flags().GetBool("show-headers")
-			showDetails, _ := cmd.Flags().GetBool("show-details")
-			showStatusCode, _ := cmd.Flags().GetBool("show-status_code")
-
-			// Make the HTTP GET request
-			resp, err := http.Get(url)
-			if err != nil {
-				return "", 0, fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
-			}
-			defer func() {
-				_ = resp.Body.Close()
-			}()
-
-			if showHeader {
-				cmd.Printf("headers: %d\n", len(resp.Header))
-				for k, v := range resp.Header {
-					cmd.Printf("  %-30s   %s\n", k, v)
-				}
-				cmd.Printf("%s\n", strings.Repeat("-", 80))
-			}
-			if showDetails || showStatusCode {
-				cmd.Printf("status code: %d\n\n", resp.StatusCode)
-			}
-			// Check if the HTTP status code is OK
-			if resp.StatusCode != http.StatusOK {
-				return "", resp.StatusCode, fmt.Errorf("url: %v unexpected status code: %d", url, resp.StatusCode)
-			}
-
-			// Read the response body
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return "", resp.StatusCode, fmt.Errorf("failed to read response body: %v", err)
-			}
-			if showDetails {
-				cmd.Printf("response len: %d\n", len(body))
-			}
-
-			// Return the body as a string
-			return string(body), resp.StatusCode, nil
-		}
+		rootCmd.AddCommand(dateCmd)
 
 		var httpCmdFunc = func(cmd *cobra.Command, args []string) {
 
@@ -464,11 +428,57 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		rootCmd.AddCommand(checkCmd)
 		rootCmd.AddCommand(repeatCmd)
 		rootCmd.AddCommand(waitCmd)
-		rootCmd.AddCommand(dateCmd)
+
 		rootCmd.AddCommand(httpCmd)
 		rootCmd.AddCommand(sleepCmd)
-		rootCmd.AddCommand(printCmd)
-		rootCmd.AddCommand(exitCmd)
-		rootCmd.AddCommand(clsCmd)
+
 	}
+}
+
+var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) {
+	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+
+	} else {
+		url = "http://" + url
+	}
+
+	showHeader, _ := cmd.Flags().GetBool("show-headers")
+	showDetails, _ := cmd.Flags().GetBool("show-details")
+	showStatusCode, _ := cmd.Flags().GetBool("show-status_code")
+
+	// Make the HTTP GET request
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if showHeader {
+		cmd.Printf("headers: %d\n", len(resp.Header))
+		for k, v := range resp.Header {
+			cmd.Printf("  %-30s   %s\n", k, v)
+		}
+		cmd.Printf("%s\n", strings.Repeat("-", 80))
+	}
+	if showDetails || showStatusCode {
+		cmd.Printf("status code: %d\n\n", resp.StatusCode)
+	}
+	// Check if the HTTP status code is OK
+	if resp.StatusCode != http.StatusOK {
+		return "", resp.StatusCode, fmt.Errorf("url: %v unexpected status code: %d", url, resp.StatusCode)
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", resp.StatusCode, fmt.Errorf("failed to read response body: %v", err)
+	}
+	if showDetails {
+		cmd.Printf("response len: %d\n", len(body))
+	}
+
+	// Return the body as a string
+	return string(body), resp.StatusCode, nil
 }
