@@ -30,7 +30,7 @@ var (
 func main() {
 	customizer := func(cli *consolekit.CLI) error {
 		cli.AddCommands(consolekit.AddAlias(cli))
-		cli.AddCommands(consolekit.AddExec())
+		cli.AddCommands(consolekit.AddOSExec())
 		cli.AddCommands(consolekit.AddHistory(cli))
 		cli.AddCommands(consolekit.AddMisc())
 		cli.AddCommands(consolekit.AddBaseCmds(cli))
