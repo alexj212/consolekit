@@ -347,3 +347,9 @@ func (c *CLI) Execute() {
 		os.Exit(1)
 	}
 }
+
+func (c *CLI) SetPrompt(s string) {
+	if c.rl != nil {
+		c.rl.SetPrompt(s)
+	}
+}
