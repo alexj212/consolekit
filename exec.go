@@ -1,10 +1,11 @@
 package consolekit
 
 import (
-	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 func AddOSExec() func(cmd *cobra.Command) {

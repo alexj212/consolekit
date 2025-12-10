@@ -1,8 +1,10 @@
 # ConsoleKit
 
-**ConsoleKit** is a modular CLI (Command Line Interface) library for building powerful console applications in Go. It supports advanced features like REPL (Read-Eval-Print Loop), command chaining (`;`), piping (`|`), file redirection (`>`), and modular command registration.
+**ConsoleKit** is a modular CLI (Command Line Interface) library for building powerful console applications in Go. It supports advanced features like
+REPL (Read-Eval-Print Loop), command chaining (`;`), piping (`|`), file redirection (`>`), and modular command registration.
 
 ## Features
+
 - 🖥️ **REPL Interface:** Provides an interactive shell-like environment.
 - 🔗 **Command Chaining:** Run multiple commands sequentially using `;`.
 - 🚦 **Piping:** Pipe the output of one command to another using `|`.
@@ -11,6 +13,7 @@
 - 💬 **Comment Handling:** Supports `#` for comments in scripts and commands.
 
 ## Installation
+
 ```sh
 go get github.com/alexj212/consolekit
 ```
@@ -20,6 +23,7 @@ go get github.com/alexj212/consolekit
 ### **1. Create a CLI Application**
 
 **main.go:**
+
 ```go
 package main
 
@@ -59,11 +63,13 @@ func main() {
 ```
 
 ### **2. Build and Run**
+
 ```sh
 go run main.go
 ```
 
 ### **3. Example Commands in REPL**
+
 ```sh
 myapp> echo "Hello World"
 Hello World
@@ -81,7 +87,9 @@ With comments
 ```
 
 ## Contributing
+
 Contributions are welcome! Feel free to submit issues or pull requests to help improve **ConsoleKit**.
 
 ## License
+
 **ConsoleKit** is licensed under the [MIT License]().

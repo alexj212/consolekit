@@ -1,16 +1,8 @@
 package consolekit
 
 import (
-	"bufio"
-	"fmt"
-	"github.com/alexj212/console"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"log"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
 )
 
 // ResetAllFlags Function to reset all flags to their default values
@@ -65,69 +57,3 @@ func ResetHelpFlagRecursively(cmd *cobra.Command) {
 	}
 }
 
-func (c *CLI) AppBlock() error {
-
-	return c.Repl.Start()
-}
-
-// ExitCtrlD is a custom interrupt handler to use when the shell
-// readline receives an io.EOF error, which is returned with CtrlD.
-func (c *CLI) ExitCtrlD(conc *console.Console) {
-	reader := bufio.NewReader(os.Stdin)
-	_, _ = conc.Printf("Confirm exit (Y/y): ")
-	text, _ := reader.ReadString('\n')
-	answer := strings.TrimSpace(text)
-
-	if (answer == "Y") || (answer == "y") {
-		c.Exit("exitCtrlD", 0)
-	}
-}
-
-func (c *CLI) Exit(caller string, code int) {
-	if c.OnExit != nil {
-		c.OnExit(caller, code)
-	}
-
-	if code != 0 {
-		_, _ = c.Repl.Printf("%s: exiting with code %d\n", caller, code)
-	}
-	time.Sleep(250 * time.Millisecond)
-	os.Exit(code)
-}
-
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the RootCmd.
-func (c *CLI) Execute() {
-
-	// Channel to signal shutdown
-	quit := make(chan struct{})
-
-	// Start console in a separate goroutine
-	go startConsole(c, quit)
-	//err = display.Start("genrmi2", quit)
-	//if err != nil {
-	//	Printf("error starting display: %v\n", err)
-	//}
-	<-quit
-	RestoreTerminal()
-
-	time.Sleep(1 * time.Second)
-	os.Exit(0)
-}
-
-func RestoreTerminal() {
-	echoCmd := exec.Command("stty", "echo") // Multiple stty arguments
-	echoCmd.Stdin = os.Stdin
-	if err := echoCmd.Run(); err != nil {
-		log.Println("Failed to restore terminal:", err)
-	}
-}
-
-func startConsole(cli *CLI, quit chan struct{}) {
-	err := cli.AppBlock()
-	if err != nil {
-		fmt.Printf(cli.ErrorString("error executing root cmd, %v\n", err))
-	}
-	time.Sleep(1 * time.Second)
-	close(quit)
-}

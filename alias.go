@@ -3,11 +3,11 @@ package consolekit
 import (
 	"bufio"
 	"fmt"
-	"github.com/alexj212/consolekit/safemap"
-	"github.com/kballard/go-shellquote"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/alexj212/consolekit/safemap"
 
 	"github.com/spf13/cobra"
 )
@@ -17,31 +17,6 @@ var aliases = safemap.New[string, string]()
 func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
-
-		cli.Repl.PreCmdRunLineHooks = append(cli.Repl.PreCmdRunLineHooks, func(args []string) ([]string, error) {
-			//fmt.Printf("AddAlias arg len: %d\n", len(args))
-
-			if len(args) > 0 {
-				line, ok := aliases.Get(args[0])
-				if ok {
-					args[0] = line
-				}
-			}
-			line := strings.Join(args, " ")
-			args, err := shellquote.Split(line)
-			if err != nil {
-				return args, err
-			}
-
-			for i, arg := range args {
-				if strings.Contains(arg, " ") {
-					args[i] = "\"" + arg + "\"" // this is to prevent the shell from splitting the arg
-				}
-			}
-
-			//fmt.Printf("AddAlias arg len after: %d\n", len(args))
-			return args, nil
-		})
 
 		cli.LoadAliases(rootCmd)
 

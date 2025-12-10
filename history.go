@@ -1,9 +1,37 @@
 package consolekit
 
 import (
-	"github.com/spf13/cobra"
+	"bufio"
+	"os"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
+
+// getHistory reads history from file and returns as slice
+func (c *CLI) getHistory() []string {
+	var history []string
+
+	if c.historyFile == "" {
+		return history
+	}
+
+	file, err := os.Open(c.historyFile)
+	if err != nil {
+		return history
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" {
+			history = append(history, line)
+		}
+	}
+
+	return history
+}
 
 func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 
@@ -26,30 +54,30 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 
 			showDupes, _ := cmd.Flags().GetBool("show_dupes")
 			filter := strings.ToLower(args[0])
-			lines := cli.Repl.Shell().History.Current().Len()
+
+			// Get history from file
+			history := cli.getHistory()
+			lines := len(history)
 			cmd.Printf("History: %d\n\n", lines)
 
 			cnt := 0
 			seen := make(map[string]bool)
 
-			start := 0
-			for i := start; i < lines; i++ {
-				line, err := cli.Repl.Shell().History.Current().GetLine(i)
-				if err == nil {
+			for i := 0; i < lines; i++ {
+				line := history[i]
 
-					if !strings.Contains(strings.ToLower(line), filter) {
+				if !strings.Contains(strings.ToLower(line), filter) {
+					continue
+				}
+
+				if !showDupes {
+					if seen[line] {
 						continue
 					}
-
-					if !showDupes {
-						if seen[line] {
-							continue
-						}
-						seen[line] = true
-					}
-					cmd.Printf("%d: %s\n", i, line)
-					cnt++
+					seen[line] = true
 				}
+				cmd.Printf("%d: %s\n", i, line)
+				cnt++
 			}
 
 		}
@@ -63,7 +91,9 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 		}
 
 		var historyLsCmdFunc = func(cmd *cobra.Command, args []string) {
-			lines := cli.Repl.Shell().History.Current().Len()
+			// Get history from file
+			history := cli.getHistory()
+			lines := len(history)
 			cmd.Printf("History: %d\n\n", lines)
 			showDupes, _ := cmd.Flags().GetBool("show_dupes")
 			limit, _ := cmd.Flags().GetInt("limit")
@@ -77,19 +107,17 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 			}
 
 			for i := start; i < lines; i++ {
-				line, err := cli.Repl.Shell().History.Current().GetLine(i)
-				if err == nil {
-					if !showDupes {
-						if seen[line] {
-							continue
-						}
-						seen[line] = true
+				line := history[i]
+				if !showDupes {
+					if seen[line] {
+						continue
 					}
-					cmd.Printf("%d: %s\n", i, line)
-					cnt++
-					if cnt >= limit {
-						break
-					}
+					seen[line] = true
+				}
+				cmd.Printf("%d: %s\n", i, line)
+				cnt++
+				if cnt >= limit {
+					break
 				}
 			}
 		}

@@ -2,9 +2,10 @@ package consolekit
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"io"
 	"net/http"
+
+	"github.com/spf13/cobra"
 
 	"reflect"
 

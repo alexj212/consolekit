@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+
 	"github.com/alexj212/consolekit"
 	"github.com/spf13/cobra"
 )

@@ -3,32 +3,28 @@ package consolekit
 import (
 	"bytes"
 	"embed"
-	"errors"
 	"fmt"
-	"github.com/alexj212/console/parser"
-	"github.com/alexj212/consolekit/safemap"
-	"github.com/fatih/color"
-	"github.com/mattn/go-isatty"
-	"github.com/spf13/pflag"
 	"io"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
+	"syscall"
 
-	"github.com/alexj212/console"
+	"github.com/alexj212/consolekit/parser"
+	"github.com/alexj212/consolekit/safemap"
+	"github.com/chzyer/readline"
+	"github.com/fatih/color"
+	"github.com/mattn/go-isatty"
+	"github.com/spf13/pflag"
 
 	"github.com/spf13/cobra"
 )
 
 type CLI struct {
-	NoColor bool
-	//rootCmd     *cobra.Command
+	NoColor        bool
 	rootInit       []func(c *cobra.Command)
-	Repl           *console.Console
-	LocalMenu      *console.Menu
-	LocalPrompt    *console.Prompt
 	AppName        string
 	OnExit         func(caller string, code int)
 	InfoString     func(format string, a ...any) string
@@ -36,6 +32,10 @@ type CLI struct {
 	Scripts        embed.FS
 	Defaults       *safemap.SafeMap[string, string]
 	TokenReplacers []func(string) (string, bool)
+
+	// readline specific fields
+	rl          *readline.Instance
+	historyFile string
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
@@ -46,56 +46,30 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		Defaults:    safemap.New[string, string](),
 	}
 
-	//cli.cmdBuilders = []func() *cobra.Command{}
-	cli.Repl = console.New(AppName)
-
-	console.DisableParse = true
-
 	isTTY := isatty.IsTerminal(os.Stdout.Fd())
 	cli.NoColor = os.Getenv("NO_COLOR") != "" || !isTTY
 
 	if cli.NoColor {
 		cli.InfoString = fmt.Sprintf
 		cli.ErrorString = fmt.Sprintf
+		color.NoColor = true
 	}
-	cli.Repl.NewlineAfter = true
 
-	_ = cli.Repl.Shell().Config.Set("editing-mode", "vi")
-	_ = cli.Repl.Shell().Config.Set("history-autosuggest", true)
-	_ = cli.Repl.Shell().Config.Set("usage-hint-always", true)
-
-	name := strings.ToLower(cli.AppName)
-	fileName := fmt.Sprintf(".%s.local.repl.history", name)
-
+	// Set up history file
 	currentUser, err := user.Current()
 	if err != nil {
 		fmt.Printf("unable to get current user: %v\n", err)
+	} else {
+		name := strings.ToLower(cli.AppName)
+		fileName := fmt.Sprintf(".%s.history", name)
+		cli.historyFile = filepath.Join(currentUser.HomeDir, fileName)
 	}
-
-	filePath := filepath.Join(currentUser.HomeDir, fileName)
-	cli.LocalMenu = cli.Repl.NewMenu("local")
-	cli.LocalMenu.AddHistorySourceFile(fmt.Sprintf("%s-local", cli.AppName), filePath)
-	cli.LocalMenu.AddInterrupt(io.EOF, cli.ExitCtrlD)
-	cli.LocalMenu.AddInterrupt(errors.New(os.Interrupt.String()), cli.ExitCtrlD)
-	rootcmd := cli.BuildRootCmd()
-	cli.LocalMenu.SetCommands(rootcmd)
-
-	cli.LocalPrompt = cli.LocalMenu.Prompt()
-
-	cli.LocalPrompt.Primary = func() string {
-		return cli.InfoString("local >") + " "
-	}
-	cli.LocalPrompt.Right = func() string {
-		return cli.InfoString(time.Now().Format("03:04:05.000"))
-	}
-	cli.LocalPrompt.Transient = func() string { return "\x1b[1;30m>> \x1b[0m" }
-	cli.Repl.SwitchMenu("local")
 
 	if customizer != nil {
 		err := customizer(cli)
 		if err != nil {
 			fmt.Printf("customizer error: %v\n", err)
-			return nil, errors.New("customizer error")
+			return nil, fmt.Errorf("customizer error: %w", err)
 		}
 	}
 
@@ -117,7 +91,6 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, 
 	})
 
 	c.Defaults.ForEach(func(k string, v string) bool {
-
 		input = strings.ReplaceAll(input, k, v)
 		return false
 	})
@@ -125,66 +98,15 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, 
 	for _, e := range c.TokenReplacers {
 		input, stop := e(input)
 		if stop {
-			fmt.Printf("ReplaceDefaults A: %s\n", input)
 			return input
 		}
 	}
 	input = c.replaceToken(cmd, defs, input)
 	return input
+}
 
-	//args, err := shellquote.Split(input)
-	//if err == nil {
-	//	fmt.Printf("ReplaceDefaults A: %v\n", strings.Join(args, "##"))
-	//	for i, arg := range args {
-	//		if strings.HasPrefix(arg, "@") {
-	//			args[i] = c.replaceToken(cmd, arg)
-	//		}
-	//	}
-	//	fmt.Printf("ReplaceDefaults B: %s\n", shellquote.Join(args...))
-	//	return shellquote.Join(args...)
-	//}
-
-	//if strings.HasPrefix(input, "@env:") {
-	//	envVar := strings.TrimPrefix(input, "@env:")
-	//	if value, exists := os.LookupEnv(envVar); exists {
-	//		return value
-	//	}
-	//	return input
-	//}
-	//
-	//if strings.HasPrefix(input, "@exec:") {
-	//	toExec := strings.TrimPrefix(input, "@exec:")
-	//	res, err := c.ExecuteLine(toExec)
-	//	if err != nil {
-	//		cmd.Printf("ExecuteLine err: %s\n", err)
-	//		return input
-	//	}
-	//	return res
-	//}
-	//return input
-
-	// Regular expression to split by spaces, but keep quoted sections intact
-	//re := regexp.MustCompile(`"[^"]*"|\S+`)
-	//words := re.FindAllString(input, -1)
-	//
-	//for i, word := range words {
-	//	// Check for tokens inside quotes but retain quotes
-	//	if strings.HasPrefix(word, `"@`) {
-	//		// Remove quotes, replace token, then re-wrap with quotes
-	//		cleanWord := strings.Trim(word, `"`)
-	//		words[i] = `"` + c.replaceToken(cmd, cleanWord) + `"`
-	//	} else if strings.HasPrefix(word, "@") {
-	//		// Replace token directly if not in quotes
-	//		words[i] = c.replaceToken(cmd, word)
-	//	}
-	//}
-	//return strings.Join(words, " ")
-} //ReplaceDefaults
-
-// replaceToken handles token replacement. Modify this function as needed.
+// replaceToken handles token replacement
 func (c *CLI) replaceToken(cmd *cobra.Command, defs *safemap.SafeMap[string, string], token string) string {
-	//cmd.Printf("ReplaceToken: %s\n", token)
-	//cmd.Printf("\n")
 	if strings.HasPrefix(token, "@env:") {
 		envVar := strings.TrimPrefix(token, "@env:")
 		if value, exists := os.LookupEnv(envVar); exists {
@@ -195,9 +117,7 @@ func (c *CLI) replaceToken(cmd *cobra.Command, defs *safemap.SafeMap[string, str
 
 	if strings.HasPrefix(token, "@exec:") {
 		toExec := strings.TrimPrefix(token, "@exec:")
-		fmt.Printf("exec: %s\n", toExec)
 		res, _ := c.ExecuteLine(toExec, defs)
-		fmt.Printf("exec result: %s\n", res)
 		return res
 	}
 
@@ -220,40 +140,16 @@ func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (s
 	rootCmd := c.BuildRootCmd()()
 	line = c.ReplaceDefaults(rootCmd, defs, line)
 
-	//fmt.Printf("ExecuteLine : %s\n", line)
 	_, commands, err := parser.ParseCommands(line)
 	if err != nil {
-		fmt.Printf("ExecuteLine ParseCommands err: %s\n", err)
 		return "", err
 	}
 
-	//fmt.Printf("commands: %d\n", len(commands))
-	return c.Repl.ExecuteCommand(rootCmd, commands)
+	return c.executeCommands(rootCmd, commands)
 }
 
-func (c *CLI) BuildRootCmd() console.Commands {
-	return func() *cobra.Command {
-
-		rootCmd := &cobra.Command{
-			Use:                "",
-			Short:              "modular consolekit",
-			DisableFlagParsing: true,
-		}
-
-		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
-
-		for _, init := range c.rootInit {
-			init(rootCmd)
-		}
-
-		SetRecursiveHelpFunc(rootCmd)
-		return rootCmd
-	}
-}
-
-// ExecuteCommand executes parsed commands using a Cobra root command with piped execution
-func ExecuteCommand(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
-
+// executeCommands executes parsed commands with piping support
+func (c *CLI) executeCommands(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
 	var output bytes.Buffer
 	var input io.Reader
 
@@ -273,7 +169,7 @@ func ExecuteCommand(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string,
 			}
 
 			if err := rootCmd.Execute(); err != nil {
-				return "", err
+				return buf.String(), err
 			}
 
 			input = &buf
@@ -284,4 +180,170 @@ func ExecuteCommand(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string,
 	}
 
 	return output.String(), nil
+}
+
+func (c *CLI) BuildRootCmd() func() *cobra.Command {
+	return func() *cobra.Command {
+
+		rootCmd := &cobra.Command{
+			Use:                "",
+			Short:              "modular consolekit",
+			DisableFlagParsing: true,
+		}
+
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+
+		for _, init := range c.rootInit {
+			init(rootCmd)
+		}
+
+		SetRecursiveHelpFunc(rootCmd)
+		return rootCmd
+	}
+}
+
+// completer provides auto-completion suggestions for readline
+func (c *CLI) completer(line string) []string {
+	var values []string
+
+	// Build suggestions from cobra commands
+	rootCmd := c.BuildRootCmd()()
+	word := strings.TrimSpace(line)
+
+	for _, cmd := range rootCmd.Commands() {
+		// Add main command
+		if strings.HasPrefix(cmd.Use, word) || word == "" {
+			values = append(values, cmd.Use)
+		}
+
+		// Add aliases
+		for _, alias := range cmd.Aliases {
+			if strings.HasPrefix(alias, word) || word == "" {
+				values = append(values, alias)
+			}
+		}
+	}
+
+	return values
+}
+
+// AppBlock starts the REPL loop (maintains API compatibility)
+func (c *CLI) AppBlock() error {
+	// Configure readline with better tab completion
+	config := &readline.Config{
+		Prompt:          fmt.Sprintf("%s > ", c.AppName),
+		HistoryFile:     c.historyFile,
+		AutoComplete:    &completerAdapter{cli: c},
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	}
+
+	// Create readline instance
+	var err error
+	c.rl, err = readline.NewEx(config)
+	if err != nil {
+		return fmt.Errorf("failed to initialize readline: %w", err)
+	}
+	defer c.rl.Close()
+
+	// Set up signal handler to save history and exit gracefully
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		c.rl.Close()
+		os.Exit(0)
+	}()
+
+	// Main REPL loop
+	for {
+		line, err := c.rl.Readline()
+
+		// Handle EOF (Ctrl+D) or Ctrl+C
+		if err == readline.ErrInterrupt {
+			if len(line) == 0 {
+				fmt.Println("\nUse 'exit' or 'quit' to exit")
+				continue
+			}
+			continue
+		} else if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		// Trim input
+		input := strings.TrimSpace(line)
+
+		// Skip empty input
+		if input == "" {
+			continue
+		}
+
+		// Skip comments
+		if strings.HasPrefix(input, "#") {
+			continue
+		}
+
+		// Execute the command
+		output, err := c.ExecuteLine(input, nil)
+
+		// Print output
+		if output != "" {
+			fmt.Print(output)
+			if !strings.HasSuffix(output, "\n") {
+				fmt.Println()
+			}
+		}
+
+		if err != nil {
+			fmt.Printf("%s\n", c.ErrorString("Error: %v", err))
+		}
+	}
+
+	return nil
+}
+
+// completerAdapter adapts CLI completer to readline.AutoCompleter interface
+type completerAdapter struct {
+	cli *CLI
+}
+
+func (ca *completerAdapter) Do(line []rune, pos int) (newLine [][]rune, length int) {
+	// Get completions from CLI completer
+	completions := ca.cli.completer(string(line[:pos]))
+
+	// Convert to readline format
+	var suggestions [][]rune
+	for _, c := range completions {
+		suggestions = append(suggestions, []rune(c))
+	}
+
+	return suggestions, len(line) - pos
+}
+
+// Exit handles program exit
+func (c *CLI) Exit(caller string, code int) {
+	if c.OnExit != nil {
+		c.OnExit(caller, code)
+	}
+
+	if code != 0 {
+		fmt.Printf("%s: exiting with code %d\n", caller, code)
+	}
+
+	// Close readline if it exists (history is saved automatically)
+	if c.rl != nil {
+		c.rl.Close()
+	}
+
+	os.Exit(code)
+}
+
+// Execute starts the CLI (alternative entry point for compatibility)
+func (c *CLI) Execute() {
+	if err := c.AppBlock(); err != nil {
+		fmt.Printf(c.ErrorString("error executing CLI: %v\n", err))
+		os.Exit(1)
+	}
 }
