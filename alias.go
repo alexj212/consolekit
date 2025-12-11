@@ -53,7 +53,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 					cmd.Printf("error saving aliases, %v\n", err)
 					return
 				}
-				cmd.Printf("saved aliases, `%s` command: `%s`\n", args[0], args[1])
+				cmd.Printf("saved aliases\n")
 
 			},
 		}
@@ -119,7 +119,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 					cmd.Printf("error saving aliases, %v\n", err)
 					return
 				}
-				cmd.Printf("saved aliases, `%s` command: `%s`\n", args[0], args[1])
+				cmd.Printf("saved aliases\n")
 			},
 		}
 
@@ -153,7 +153,6 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 }
 
 func (c *CLI) LoadAliases(cmd *cobra.Command) {
-	c.setupDefaultAliases(cmd)
 	// Get the user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -169,7 +168,7 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 	file, err := os.Open(aliasesFilePath)
 	if err != nil {
 		fmt.Printf(c.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
-		c.setupDefaultAliases(cmd)
+		c.AddDefaultAliases(cmd)
 		return
 	}
 	defer func() {
@@ -211,26 +210,19 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 	if err := scanner.Err(); err != nil {
 		return
 	}
-
-	if c.aliases.Len() == 0 {
-		c.setupDefaultAliases(cmd)
-		return
-	}
-
 	//fmt.Printf("loaded %d aliases from %s.\n", c.aliases.Len(), aliasesFilePath)
 }
 
-func (c *CLI) AddDefaultAliases(alias, expanded string) {
+func (c *CLI) AddDefaultAlias(alias, expanded string) {
 	c.aliases.Set(alias, expanded)
 }
 
-func (c *CLI) setupDefaultAliases(cmd *cobra.Command) {
+func (c *CLI) AddDefaultAliases(cmd *cobra.Command) {
 	c.aliases.Set("pp", "print test")
 	c.aliases.Set("lsu", "service list user")
 	c.aliases.Set("s", "service list")
 	c.aliases.Set("lsp", "service list proto")
 	c.aliases.Set("lsx", "service list proxy")
-	c.aliases.Set("who", "remote 'who -r'")
 	c.aliases.Set("wbot", "remote 'who -r --bot'")
 	c.aliases.Set("bots", "remote 'who -r --bot'")
 	c.aliases.Set("wb", "remote 'who -r --bot'")
