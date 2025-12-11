@@ -36,6 +36,7 @@ type CLI struct {
 	// readline specific fields
 	rl          *readline.Instance
 	historyFile string
+	history     []string // Track history for completions
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
@@ -63,6 +64,9 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		name := strings.ToLower(cli.AppName)
 		fileName := fmt.Sprintf(".%s.history", name)
 		cli.historyFile = filepath.Join(currentUser.HomeDir, fileName)
+
+		// Load existing history for completions
+		cli.loadHistory()
 	}
 
 	if customizer != nil {
@@ -224,7 +228,49 @@ func (c *CLI) completer(line string) []string {
 		}
 	}
 
+	// Add history-based completions (most recent first)
+	for i := len(c.history) - 1; i >= 0; i-- {
+		histLine := c.history[i]
+
+		// Only add if it matches the prefix and isn't already in values
+		if histLine != "" && strings.HasPrefix(histLine, word) {
+			// Check if already added
+			found := false
+			for _, v := range values {
+				if v == histLine {
+					found = true
+					break
+				}
+			}
+			if !found {
+				values = append(values, histLine)
+			}
+		}
+	}
+
 	return values
+}
+
+// loadHistory loads command history from the history file for completions
+func (c *CLI) loadHistory() {
+	if c.historyFile == "" {
+		return
+	}
+
+	data, err := os.ReadFile(c.historyFile)
+	if err != nil {
+		// File might not exist yet, which is fine
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	c.history = make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			c.history = append(c.history, line)
+		}
+	}
 }
 
 // AppBlock starts the REPL loop (maintains API compatibility)
@@ -284,6 +330,9 @@ func (c *CLI) AppBlock() error {
 		if strings.HasPrefix(input, "#") {
 			continue
 		}
+
+		// Add to our history tracking for completions
+		c.history = append(c.history, input)
 
 		// Execute the command
 		output, err := c.ExecuteLine(input, nil)
