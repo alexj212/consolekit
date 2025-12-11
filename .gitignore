@@ -10,3 +10,4 @@ venv
 logs.db
 genrmi2
 *.json
+examples/simple/simple

@@ -1,6 +1,7 @@
 package consolekit
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -30,8 +31,8 @@ func AddOSExec() func(cmd *cobra.Command) {
 				osCmd := exec.Command(cmdLine[0], cmdLine[1:]...)
 
 				if !showOutput {
-					osCmd.Stdout = nil
-					osCmd.Stderr = nil
+					osCmd.Stdout = io.Discard
+					osCmd.Stderr = io.Discard
 				} else {
 					osCmd.Stdout = os.Stdout
 					osCmd.Stderr = os.Stderr

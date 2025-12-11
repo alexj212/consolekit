@@ -113,8 +113,7 @@ func AddMisc() func(cmd *cobra.Command) {
 				if !ok {
 					return fmt.Errorf("environment variable %s not found", args[0])
 				}
-				parts := strings.Split(val, "=")
-				cmd.Printf("%-30s %s\n", parts[0], parts[1])
+				cmd.Printf("%-30s %s\n", args[0], val)
 				return nil
 			},
 		}

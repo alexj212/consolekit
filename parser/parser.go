@@ -3,6 +3,8 @@ package parser
 import (
 	"errors"
 	"strings"
+
+	"github.com/kballard/go-shellquote"
 )
 
 type ExecCmd struct {
@@ -74,7 +76,11 @@ func ParseCommands(input string) (string, []*ExecCmd, error) {
 				continue
 			}
 
-			cmdParts := strings.Fields(part)
+			// Use shellquote to properly handle quoted arguments
+			cmdParts, err := shellquote.Split(part)
+			if err != nil {
+				return "", nil, errors.New("invalid command syntax: " + err.Error())
+			}
 			if len(cmdParts) == 0 {
 				return "", nil, errors.New("invalid command syntax")
 			}

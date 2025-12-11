@@ -7,12 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alexj212/consolekit/safemap"
-
 	"github.com/spf13/cobra"
 )
-
-var aliases = safemap.New[string, string]()
 
 func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 
@@ -35,8 +31,12 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Long:    `Add a new alias to the system.`,
 			Args:    cobra.ExactArgs(2),
 			Run: func(cmd *cobra.Command, args []string) {
-				aliases.Set(args[0], args[1])
-				cli.SaveAliases(cmd)
+				cli.aliases.Set(args[0], args[1])
+				err := cli.SaveAliases(cmd)
+				if err != nil {
+					cmd.Printf("error saving aliases, %v\n", err)
+					return
+				}
 				cmd.Printf("Setting alias, `%s` command: `%s`\n", args[0], args[1])
 			},
 		}
@@ -48,7 +48,13 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Aliases: []string{"s"},
 			Args:    cobra.ExactArgs(0),
 			Run: func(cmd *cobra.Command, args []string) {
-				cli.SaveAliases(cmd)
+				err := cli.SaveAliases(cmd)
+				if err != nil {
+					cmd.Printf("error saving aliases, %v\n", err)
+					return
+				}
+				cmd.Printf("saved aliases, `%s` command: `%s`\n", args[0], args[1])
+
 			},
 		}
 
@@ -61,19 +67,19 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Args:    cobra.MaximumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
 				if len(args) == 0 {
-					if aliases.Len() == 0 {
+					if cli.aliases.Len() == 0 {
 						cmd.Printf("No aliases defined\n")
 						return
 					}
 					cmd.Printf("Aliases:\n----------------------------------------\n")
-					aliases.ForEach(func(k string, v string) bool {
+					cli.aliases.ForEach(func(k string, v string) bool {
 						cmd.Printf("%s=%s\n", k, v)
 						return false
 					})
 					return
 				}
 				alias := args[0]
-				value, ok := aliases.Get(alias)
+				value, ok := cli.aliases.Get(alias)
 				if !ok {
 					cmd.Printf(cli.ErrorString("alias `%s` not found\n", alias))
 					return
@@ -107,9 +113,13 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Run: func(cmd *cobra.Command, args []string) {
 				alias := args[0]
 				cmd.Printf("removing alias `%s`\n", alias)
-				aliases.Delete(alias)
-				cli.SaveAliases(cmd)
-
+				cli.aliases.Delete(alias)
+				err := cli.SaveAliases(cmd)
+				if err != nil {
+					cmd.Printf("error saving aliases, %v\n", err)
+					return
+				}
+				cmd.Printf("saved aliases, `%s` command: `%s`\n", args[0], args[1])
 			},
 		}
 
@@ -121,7 +131,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Long:    `List all aliases currently available in the system.`,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmd.Printf("Aliases:\n----------------------------------------\n")
-				aliases.SortedForEach(func(k string, v string) bool {
+				cli.aliases.SortedForEach(func(k string, v string) bool {
 					cmd.Printf("%s=%s\n", k, v)
 					return false
 				})
@@ -194,10 +204,7 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 			continue
 		}
 
-		// here to replace the old password with the new one
-		value = strings.ReplaceAll(value, "tipTopMagoo", "KillMenOw")
-
-		aliases.Set(name, value)
+		c.aliases.Set(name, value)
 	}
 
 	// Check for scanner errors
@@ -205,28 +212,37 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 		return
 	}
 
-	if aliases.Len() == 0 {
+	if c.aliases.Len() == 0 {
 		c.setupDefaultAliases(cmd)
 		return
 	}
 
-	//fmt.Printf("loaded %d aliases from %s.\n", aliases.Len(), aliasesFilePath)
+	//fmt.Printf("loaded %d aliases from %s.\n", c.aliases.Len(), aliasesFilePath)
+}
+
+func (c *CLI) AddDefaultAliases(alias, expanded string) {
+	c.aliases.Set(alias, expanded)
 }
 
 func (c *CLI) setupDefaultAliases(cmd *cobra.Command) {
-	aliases.Set("lsu", "service list user")
-	aliases.Set("s", "service list")
-	aliases.Set("lsp", "service list proto")
-	aliases.Set("lsx", "service list proxy")
-	aliases.Set("who", "remote 'who -r'")
-	aliases.Set("wbot", "remote 'who -r --bot'")
-	aliases.Set("bots", "remote 'who -r --bot'")
-	aliases.Set("wb", "remote 'who -r --bot'")
-	aliases.Set("w", "remote 'who -r'")
-	aliases.Set("expr", "client expr")
-	aliases.Set("abdicate", "remote 'system abdicate'")
-	aliases.Set("kill", "service kill --password=qaKillMenOw! --force ")
-	c.SaveAliases(cmd)
+	c.aliases.Set("pp", "print test")
+	c.aliases.Set("lsu", "service list user")
+	c.aliases.Set("s", "service list")
+	c.aliases.Set("lsp", "service list proto")
+	c.aliases.Set("lsx", "service list proxy")
+	c.aliases.Set("who", "remote 'who -r'")
+	c.aliases.Set("wbot", "remote 'who -r --bot'")
+	c.aliases.Set("bots", "remote 'who -r --bot'")
+	c.aliases.Set("wb", "remote 'who -r --bot'")
+	c.aliases.Set("w", "remote 'who -r'")
+	c.aliases.Set("expr", "client expr")
+	c.aliases.Set("abdicate", "remote 'system abdicate'")
+
+	err := c.SaveAliases(cmd)
+	if err != nil {
+		cmd.Printf("error saving aliases, %v\n", err)
+		return
+	}
 }
 
 func (c *CLI) SaveAliases(cmd *cobra.Command) error {
@@ -250,7 +266,7 @@ func (c *CLI) SaveAliases(cmd *cobra.Command) error {
 
 	// Write each key-value pair to the file
 	writer := bufio.NewWriter(file)
-	aliases.ForEach(func(name string, value string) bool {
+	c.aliases.ForEach(func(name string, value string) bool {
 		_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", name, value))
 		if err != nil {
 			cmd.Printf(c.ErrorString("error writing to `%s`, %v", name, err))

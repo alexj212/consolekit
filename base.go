@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/spf13/cobra"
-
-	"reflect"
-
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 const ClsSeq = "\033[H\033[2J"
@@ -219,53 +216,9 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				return nil
 			},
 		}
-		var data any
 
-		// checkCmd checks if a struct field matches a provided value
-		var checkCmd = &cobra.Command{
-			Use:   "check --field FIELD_NAME --value VALUE",
-			Short: "Checks if the specified field in a struct matches the provided value",
-			Long: `Checks if a field in the Person struct has the specified value.
-You can supply the field name and the expected value to verify against the struct.`,
-			Example: ` check --field Name --value Alice
- check --field Age --value 25
- check --field Email --value "alice@example.com"`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				fieldName, err := cmd.Flags().GetString("field")
-				if err != nil || fieldName == "" {
-					return fmt.Errorf("please provide a valid field name with --field")
-				}
-
-				fieldValue, err := cmd.Flags().GetString("value")
-				if err != nil || fieldValue == "" {
-					return fmt.Errorf("please provide a valid value with --value")
-				}
-
-				pValue := reflect.ValueOf(data)
-				pType := pValue.Type()
-
-				found := false
-				for i := 0; i < pType.NumField(); i++ {
-					field := pType.Field(i)
-					if strings.EqualFold(field.Name, fieldName) {
-						found = true
-						fieldVal := pValue.FieldByName(field.Name)
-						if fmt.Sprint(fieldVal.Interface()) == fieldValue {
-							cmd.Printf("Match found: %s = %s\n", field.Name, fieldValue)
-						} else {
-							cmd.Printf("No match: %s is %v, expected %s\n", field.Name, fieldVal.Interface(), fieldValue)
-						}
-						break
-					}
-				}
-
-				if !found {
-					cmd.Printf("Field %s not found in Person struct\n", fieldName)
-				}
-
-				return nil
-			},
-		}
+		// Note: The 'check' command has been removed due to uninitialized data dependency.
+		// If needed in the future, it should be implemented with proper data initialization.
 
 		// waitForCmd waits until a condition is met
 		var waitForCmd = &cobra.Command{
@@ -357,41 +310,40 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		}
 
 		var IfCmdFunc = func(cmd *cobra.Command, args []string) {
-			cmd.Printf("IfCmdFunc expr: `%s` val: `%s`\n", args[0], args[1])
-			cmd.Printf("if_true : `%s`\n", cmd.Flag("if_true").Value.String())
-			cmd.Printf("if_false: `%s`\n", cmd.Flag("if_false").Value.String())
-			cmd.Printf("if_na   : `%s`\n", cmd.Flag("if_na").Value.String())
-			iff := true
+			// Evaluate the condition: compare args[0] with args[1]
+			iff := args[0] == args[1]
 
 			ifTrue := cmd.Flag("if_true").Value.String()
-			if ifTrue != "" && iff {
-				cmd.Printf("running if_true: `%s`\n", ifTrue)
+			ifFalse := cmd.Flag("if_false").Value.String()
 
-				cmd.Printf("running if_false: `%s`\n", ifTrue)
+			if iff && ifTrue != "" {
+				cmd.Printf("Condition true (%s == %s), running: `%s`\n", args[0], args[1], ifTrue)
 				res, err := cli.ExecuteLine(ifTrue, nil)
 				if err != nil {
 					cmd.Printf("Error executing command: %s err: %v\n", ifTrue, err)
 					return
 				}
-				cmd.Printf("Result: %s\n", res)
+				if res != "" {
+					cmd.Printf("%s\n", res)
+				}
 				return
 			}
-			ifFalse := cmd.Flag("if_false").Value.String()
-			if ifFalse != "" && !iff {
-				cmd.Printf("running if_false: `%s`\n", ifFalse)
 
-				cmd.Printf("running if_false: `%s`\n", ifFalse)
+			if !iff && ifFalse != "" {
+				cmd.Printf("Condition false (%s != %s), running: `%s`\n", args[0], args[1], ifFalse)
 				res, err := cli.ExecuteLine(ifFalse, nil)
 				if err != nil {
-					cmd.Printf("Error executing ifFalse: %s err: %v\n", ifFalse, err)
+					cmd.Printf("Error executing command: %s err: %v\n", ifFalse, err)
 					return
 				}
-				cmd.Printf("Result: %s\n", res)
+				if res != "" {
+					cmd.Printf("%s\n", res)
+				}
 				return
 			}
 
-			cmd.Printf("if_na: `%s`\n", cmd.Flag("if_na").Value.String())
-
+			// No action taken
+			cmd.Printf("Condition: %s == %s is %v (no matching command specified)\n", args[0], args[1], iff)
 		}
 
 		var ifCmd = &cobra.Command{
@@ -409,11 +361,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		repeatCmd.Flags().IntP("sleep", "s", 0, "Seconds to wait between each repetition")
 		repeatCmd.Flags().BoolP("background", "b", false, "run in background")
 
-		checkCmd.Flags().StringP("field", "f", "", "Field name to check in the struct")
-		checkCmd.Flags().StringP("value", "v", "", "Expected value of the field")
-		_ = checkCmd.MarkFlagRequired("field")
-		_ = checkCmd.MarkFlagRequired("value")
-
 		waitForCmd.Flags().IntP("target", "t", 10, "Target value to wait for")
 		waitForCmd.Flags().IntP("interval", "i", 1, "Interval in seconds between each check")
 		_ = waitForCmd.MarkFlagRequired("target")
@@ -426,7 +373,6 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 		defaultCmd.Flags().BoolP("overwrite", "o", false, "overwrite default value")
 		rootCmd.AddCommand(defaultCmd)
 		rootCmd.AddCommand(waitForCmd)
-		rootCmd.AddCommand(checkCmd)
 		rootCmd.AddCommand(repeatCmd)
 		rootCmd.AddCommand(waitCmd)
 
@@ -447,8 +393,11 @@ var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) 
 	showDetails, _ := cmd.Flags().GetBool("show-details")
 	showStatusCode, _ := cmd.Flags().GetBool("show-status_code")
 
-	// Make the HTTP GET request
-	resp, err := http.Get(url)
+	// Make the HTTP GET request with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Get(url)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to fetch URL: %v err: %v", url, err)
 	}

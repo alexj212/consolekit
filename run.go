@@ -4,16 +4,14 @@ import (
 	"bufio"
 	"embed"
 	"fmt"
-
-	"github.com/kballard/go-shellquote"
-
 	"io"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/alexj212/consolekit/safemap"
+	"github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
-
-	"strings"
 )
 
 func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
@@ -64,8 +62,10 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 		}
 
 		var runScriptCmdFunc = func(cmd *cobra.Command, args []string) {
+			// Create scoped defaults for script arguments to avoid leakage
+			scriptDefs := safemap.New[string, string]()
 			for i, arg := range args[1:] {
-				cli.Defaults.Set(fmt.Sprintf("@arg%d", i), arg)
+				scriptDefs.Set(fmt.Sprintf("@arg%d", i), arg)
 			}
 
 			if args[0] == "@" {
@@ -107,7 +107,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 					}
 
 					//cmd.Printf("doExec: %s\n", cmdLine)
-					res, err := cli.ExecuteLine(cmdLine, nil)
+					res, err := cli.ExecuteLine(cmdLine, scriptDefs)
 					cmd.Printf("%s\n", res)
 					if err != nil {
 						cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
@@ -169,7 +169,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 		rootCmd.AddCommand(runScriptCmd)
 		rootCmd.AddCommand(spawnScriptCmd)
 
-		runScriptCmd.Flags().BoolVarP(new(bool), "spawn", "", false, "run script in background")
+		runScriptCmd.Flags().Bool("spawn", false, "run script in background")
 	}
 }
 

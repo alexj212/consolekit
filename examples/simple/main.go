@@ -35,6 +35,7 @@ func main() {
 		cli.AddCommands(consolekit.AddHistory(cli))
 		cli.AddCommands(consolekit.AddMisc())
 		cli.AddCommands(consolekit.AddBaseCmds(cli))
+		cli.AddCommands(consolekit.AddScriptingCmds(cli))
 		cli.AddCommands(consolekit.AddRun(cli, Data))
 
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {
