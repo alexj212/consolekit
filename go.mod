@@ -12,13 +12,13 @@ require (
 )
 
 require (
-	github.com/carapace-sh/carapace v1.7.1 // indirect
-	github.com/carapace-sh/carapace-shlex v1.0.1 // indirect
+	github.com/carapace-sh/carapace v1.10.3 // indirect
+	github.com/carapace-sh/carapace-shlex v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/reeflective/readline v1.1.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	mvdan.cc/sh/v3 v3.7.0 // indirect
+	mvdan.cc/sh/v3 v3.12.0 // indirect
 )
