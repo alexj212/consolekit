@@ -31,6 +31,8 @@ type CLI struct {
 	Defaults       *safemap.SafeMap[string, string]
 	TokenReplacers []func(string) (string, bool)
 	aliases        *safemap.SafeMap[string, string] // Per-instance aliases
+	JobManager     *JobManager                      // Background job management
+	Config         *Config                          // Application configuration
 
 	// console specific fields
 	app         *console.Console
@@ -43,12 +45,25 @@ type CLI struct {
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
+	// Initialize configuration
+	config, err := NewConfig(AppName)
+	if err != nil {
+		fmt.Printf("Warning: unable to initialize config: %v\n", err)
+	}
+
+	// Try to load existing configuration
+	if config != nil {
+		_ = config.Load() // Ignore errors if config doesn't exist
+	}
+
 	cli := &CLI{
 		AppName:      AppName,
 		InfoString:   color.New(color.FgWhite).SprintfFunc(),
 		ErrorString:  color.New(color.FgRed).SprintfFunc(),
 		Defaults:     safemap.New[string, string](),
 		aliases:      safemap.New[string, string](), // Per-instance aliases
+		JobManager:   NewJobManager(),               // Initialize job manager
+		Config:       config,                        // Initialize configuration
 		maxExecDepth: 10,                            // Prevent infinite recursion
 	}
 
@@ -87,15 +102,47 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 	return cli, nil
 }
 
+func (c *CLI) AddAll() {
+	c.AddCommands(AddAlias(c))
+	c.AddCommands(AddOSExec(c))
+	c.AddCommands(AddHistory(c))
+	c.AddCommands(AddMisc())
+	c.AddCommands(AddBaseCmds(c))
+	c.AddCommands(AddScriptingCmds(c))
+
+	c.AddCommands(AddJobCommands(c))
+	c.AddCommands(AddVariableCommands(c))
+	c.AddCommands(AddConfigCommands(c))
+	c.AddCommands(AddUtilityCommands(c))
+
+}
+
 func (c *CLI) AddCommands(cmds func(*cobra.Command)) {
 	c.rootInit = append(c.rootInit, cmds)
 }
 
 func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, string], input string) string {
 
+	// Check if entire line matches an alias
 	c.aliases.ForEach(func(k string, v string) bool {
 		if k == input {
 			input = v
+			return true
+		}
+		return false
+	})
+
+	// Also check if first word matches an alias (for cases like "pp|grep u")
+	// Split by first space or special chars to get the first command
+	firstWord := input
+	if idx := strings.IndexAny(input, " |>;"); idx != -1 {
+		firstWord = input[:idx]
+	}
+
+	c.aliases.ForEach(func(k string, v string) bool {
+		if k == firstWord && k != input { // Don't double-replace exact matches
+			// Replace first word with alias value
+			input = v + input[len(firstWord):]
 			return true
 		}
 		return false
@@ -160,12 +207,37 @@ func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (s
 	rootCmd := c.BuildRootCmd()()
 	line = c.ReplaceDefaults(rootCmd, defs, line)
 
-	_, commands, err := parser.ParseCommands(line)
+	outputFile, commands, err := parser.ParseCommands(line)
 	if err != nil {
 		return "", err
 	}
 
-	return c.executeCommands(rootCmd, commands)
+	output, err := c.executeCommands(rootCmd, commands)
+	if err != nil {
+		return output, err
+	}
+
+	// Handle file redirection if specified
+	if outputFile != "" {
+		err = c.writeToFile(outputFile, output)
+		if err != nil {
+			return output, fmt.Errorf("failed to write to file %s: %w", outputFile, err)
+		}
+	}
+
+	return output, nil
+}
+
+// writeToFile writes content to a file
+func (c *CLI) writeToFile(filename string, content string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(content)
+	return err
 }
 
 // executeCommands executes parsed commands with piping support
@@ -213,6 +285,15 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 
 		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
 
+		// Add a hidden noop command that's used internally to suppress execution
+		// after we've already handled pipes/redirects in the PreCmdRunLineHooks
+		noopCmd := &cobra.Command{
+			Use:    "__noop__",
+			Hidden: true,
+			Run:    func(cmd *cobra.Command, args []string) {}, // Do nothing
+		}
+		rootCmd.AddCommand(noopCmd)
+
 		for _, init := range c.rootInit {
 			init(rootCmd)
 		}
@@ -257,13 +338,10 @@ func (c *CLI) AppBlock() error {
 			return nil, nil
 		}
 
-		// Always do alias and token replacement
-		rootCmd := c.BuildRootCmd()()
-		line = c.ReplaceDefaults(rootCmd, nil, line)
-
-		// Check if we need full custom handling (pipes, redirects)
-		if strings.Contains(line, "|") || strings.Contains(line, ">") {
-			// Execute through our custom ExecuteLine which handles piping and redirection
+		// Check if we need full custom handling (pipes, redirects, or @ tokens)
+		// These need ExecuteLine which handles both alias/token replacement AND piping/redirection
+		if strings.Contains(line, "|") || strings.Contains(line, ">") || strings.Contains(line, "@") {
+			// Execute through our custom ExecuteLine which handles everything
 			output, err := c.ExecuteLine(line, nil)
 
 			// Print output
@@ -278,14 +356,24 @@ func (c *CLI) AppBlock() error {
 				fmt.Printf("%s\n", c.ErrorString("Error: %v", err))
 			}
 
-			// Return nil to prevent console from executing the command again
-			return nil, nil
+			// Return the noop command to prevent further execution
+			return []string{"__noop__"}, nil
 		}
 
-		// Check if the line was changed by replacement (alias or token)
-		originalLine := strings.Join(args, " ")
+		// For simple commands without pipes/redirects, do alias replacement only
+		originalLine := line
+
+		// Check aliases - note: only checks exact match of the whole line
+		c.aliases.ForEach(func(k string, v string) bool {
+			if k == line {
+				line = v
+				return true
+			}
+			return false
+		})
+
+		// If alias changed the line, re-split and return
 		if line != originalLine {
-			// Line was changed, re-split and return new args
 			newArgs := strings.Fields(line)
 			return newArgs, nil
 		}

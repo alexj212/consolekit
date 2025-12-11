@@ -78,7 +78,18 @@ Commands are organized into modular functions that return command registration f
   - Script arguments use scoped defaults to prevent leakage
 - **exec.go**: OS command execution with background support
   - Output suppression uses `io.Discard` instead of `nil`
+  - **Background jobs are tracked** in JobManager with PID and output capture
 - **misc.go**: Utility commands (`cat`, `grep`, `env`)
+- **cmds/jobcmds.go**: Job management commands (`jobs`, `job`, `killall`, `jobclean`)
+  - Track background processes from `osexec --background` and `spawn` commands
+  - View job status, logs, kill jobs, wait for completion
+- **cmds/varcmds.go**: Enhanced variable system (`let`, `unset`, `vars`, `inc`, `dec`)
+  - Command substitution with `$(...)` syntax
+  - Arithmetic operations support
+  - Export to shell script or JSON format
+- **cmds/configcmds.go**: Configuration management (`config get/set/edit/reload/show/path/save`)
+  - TOML-based configuration file
+  - Settings, aliases, variables, hooks, and logging configuration
 
 ### Script Execution System (run.go)
 
@@ -100,6 +111,72 @@ Thread-safe generic map used for:
 - **Per-CLI default variables** (CLI.Defaults)
 - **Scoped script arguments** (created per script execution)
 - Provides `ForEach`, `SortedForEach`, `Get`, `Set`, `Delete` operations
+
+### Job Management System (jobs.go)
+
+**Phase 1 Feature**: Comprehensive background job tracking system
+
+- **JobManager**: Thread-safe job tracking with:
+  - Auto-incrementing job IDs
+  - PID tracking
+  - Status monitoring (running, completed, failed, killed)
+  - Output capture in buffers
+  - Start/end time tracking
+  - Context-based cancellation
+
+- **Job Commands**:
+  - `jobs` - List all jobs (with `-v` for verbose, `-a` for all)
+  - `job [id]` - Show job details
+  - `job [id] logs` - View job output
+  - `job [id] kill` - Terminate a job
+  - `job [id] wait` - Wait for completion
+  - `killall` - Kill all running jobs
+  - `jobclean` - Remove completed jobs
+
+- **Integration**: Background jobs from `osexec --background` and `run --spawn` are automatically tracked
+
+### Enhanced Variables System (cmds/varcmds.go)
+
+**Phase 1 Feature**: Advanced variable management beyond simple `set` command
+
+- **let command**: Set variables with enhanced features
+  - Simple assignment: `let name=value`
+  - Command substitution: `let result=$(print hello)`
+  - Numeric values for arithmetic operations
+
+- **Variable Operations**:
+  - `unset [name]` - Remove variables
+  - `vars` - List all variables (pretty print)
+  - `vars --export` - Export as shell script
+  - `vars --json` - Export as JSON
+  - `inc [name] [amount]` - Increment numeric variable (default +1)
+  - `dec [name] [amount]` - Decrement numeric variable (default -1)
+
+- **Storage**: Variables stored with `@` prefix in `CLI.Defaults` SafeMap
+
+### Configuration System (config.go + cmds/configcmds.go)
+
+**Phase 1 Feature**: TOML-based configuration file management
+
+- **Config Location**: `~/.{appname}/config.toml`
+
+- **Config Sections**:
+  - `[settings]` - History size, prompt, color, pager
+  - `[aliases]` - Persistent command aliases
+  - `[variables]` - Persistent variables
+  - `[hooks]` - Lifecycle hooks (on_startup, on_exit, before_command, after_command)
+  - `[logging]` - Audit logging configuration
+
+- **Config Commands**:
+  - `config get [key]` - Retrieve config value (e.g., `config get settings.history_size`)
+  - `config set [key] [val]` - Set and save config value
+  - `config edit` - Open config in $EDITOR
+  - `config reload` - Reload from file
+  - `config show` - Display all configuration
+  - `config path` - Show config file location
+  - `config save` - Save current state to file
+
+- **Auto-loading**: Configuration automatically loaded on CLI initialization
 
 ## Key Design Patterns
 

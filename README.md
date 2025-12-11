@@ -182,15 +182,124 @@ Working...
 myapp> run @embedded-script
 ```
 
-### Background Execution
+### Background Execution & Job Management
 
 ```bash
-# Run command in background
-myapp> spawn "repeat --count 10 --sleep 2 'print tick'"
-spawn cmd: myapp | repeat --count 10 --sleep 2 'print tick'
+# Run command in background (automatically tracked)
+myapp> osexec --background "sleep 60"
+Command started in background with PID 12345 (Job ID: 1)
 
-# Run script in background
-myapp> run --spawn long-running-task.sh
+# List all jobs
+myapp> jobs
+Background Jobs:
+--------------------------------------------------------------------------------
+[1] [running] PID:12345 Duration:5s
+    sleep 60
+
+# View job details
+myapp> job 1
+==============================================================================
+Job ID: 1
+Command: sleep 60
+Status: running
+PID: 12345
+Started: 2025-12-11 15:30:00
+Duration: 30s
+==============================================================================
+
+# View job output
+myapp> job 1 logs
+
+# Kill a job
+myapp> job 1 kill
+
+# Wait for job completion
+myapp> job 1 wait
+
+# Kill all running jobs
+myapp> killall
+```
+
+### Enhanced Variables
+
+```bash
+# Set variables with 'let' command
+myapp> let counter=0
+counter = 0
+
+# Command substitution
+myapp> let timestamp=$(date)
+timestamp = 2025-12-11 15:30:00
+
+# Increment/decrement numeric variables
+myapp> inc counter
+counter = 1
+
+myapp> dec counter 5
+counter = -4
+
+# List all variables
+myapp> vars
+Variables:
+------------------------------------------------------------
+counter              = -4
+timestamp            = 2025-12-11 15:30:00
+
+# Export as shell script
+myapp> vars --export
+# Variable export
+export COUNTER="-4"
+export TIMESTAMP="2025-12-11 15:30:00"
+
+# Export as JSON
+myapp> vars --json
+{
+  "counter": "-4",
+  "timestamp": "2025-12-11 15:30:00"
+}
+
+# Remove variables
+myapp> unset counter
+```
+
+### Configuration Management
+
+```bash
+# View configuration
+myapp> config show
+Configuration:
+============================================================
+
+[settings]
+  history_size = 10000
+  prompt = "%s > "
+  color = true
+  pager = "less -R"
+
+[logging]
+  enabled = false
+  log_file = "~/.myapp/audit.log"
+  ...
+
+# Get specific config value
+myapp> config get settings.history_size
+settings.history_size = 10000
+
+# Set config value
+myapp> config set settings.history_size 5000
+Set settings.history_size = 5000
+
+# Edit config file
+myapp> config edit
+# Opens ~/.myapp/config.toml in $EDITOR
+
+# Reload configuration
+myapp> config reload
+Configuration reloaded
+
+# Show config file path
+myapp> config path
+/home/user/.myapp/config.toml
 ```
 
 ## 🏗️ Architecture
@@ -229,8 +338,11 @@ cli, err := consolekit.NewCLI("myapp", func(cli *consolekit.CLI) error {
 | **alias** | `alias`, `unalias`, `aliases` | Alias management with persistence |
 | **history** | `history`, `history search`, `history clear` | Command history operations |
 | **run** | `run`, `vs`, `spawn` | Script execution and background jobs |
-| **exec** | `osexec` | Direct OS command execution |
+| **exec** | `osexec` | Direct OS command execution with job tracking |
 | **misc** | `cat`, `grep`, `env` | File and environment utilities |
+| **jobs** | `jobs`, `job`, `killall`, `jobclean` | Background job management *(Phase 1)* |
+| **variables** | `let`, `unset`, `vars`, `inc`, `dec` | Enhanced variable system *(Phase 1)* |
+| **config** | `config get/set/edit/reload/show/path/save` | Configuration management *(Phase 1)* |
 
 ## 🔐 Security
 

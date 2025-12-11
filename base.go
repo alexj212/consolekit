@@ -21,7 +21,8 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 		}
 
 		var clsCmd = &cobra.Command{
-			Use:   "cls",
+			Use:     "cls",
+			Aliases: []string{"clear"},
 			Short: "Clear the screen",
 			Long:  `Clear the screen`,
 			Run:   clsCmdFunc,

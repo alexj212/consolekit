@@ -30,12 +30,8 @@ var (
 
 func main() {
 	customizer := func(cli *consolekit.CLI) error {
-		cli.AddCommands(consolekit.AddAlias(cli))
-		cli.AddCommands(consolekit.AddOSExec())
-		cli.AddCommands(consolekit.AddHistory(cli))
-		cli.AddCommands(consolekit.AddMisc())
-		cli.AddCommands(consolekit.AddBaseCmds(cli))
-		cli.AddCommands(consolekit.AddScriptingCmds(cli))
+
+		cli.AddAll()
 		cli.AddCommands(consolekit.AddRun(cli, Data))
 
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {

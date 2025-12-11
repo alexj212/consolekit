@@ -33,6 +33,11 @@ func ParseCommands(input string) (string, []*ExecCmd, error) {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
+			// If we have accumulated content, save it before skipping comment
+			if currentLine != "" {
+				filteredLines = append(filteredLines, currentLine)
+				currentLine = ""
+			}
 			continue
 		}
 		if strings.HasSuffix(line, "\\") {
@@ -40,65 +45,161 @@ func ParseCommands(input string) (string, []*ExecCmd, error) {
 			continue
 		}
 		currentLine += line
-		filteredLines = append(filteredLines, currentLine)
-		currentLine = ""
-	}
-	input = strings.Join(filteredLines, " ")
-
-	// Check for output redirection first
-	if strings.Contains(input, ">") {
-		parts := strings.Split(input, ">")
-		if len(parts) != 2 {
-			return "", nil, errors.New("invalid output redirection syntax")
+		if currentLine != "" {
+			filteredLines = append(filteredLines, currentLine)
+			currentLine = ""
 		}
-		input = strings.TrimSpace(parts[0])
-		if outputFile != "" {
-			return "", nil, errors.New("multiple output redirections are not allowed")
-		}
-		outputFile = strings.TrimSpace(parts[1])
 	}
 
-	// Split the input by ';' to handle multiple commands
-	commandGroups := strings.Split(input, ";")
+	if len(filteredLines) == 0 {
+		return "", commands, nil
+	}
 
-	for _, group := range commandGroups {
-		group = strings.TrimSpace(group)
-		if group == "" {
+	// Process each line
+	for _, line := range filteredLines {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
 
-		// Parse piped commands
-		var prevCmd *ExecCmd
-		pipeParts := strings.Split(group, "|")
-		for _, part := range pipeParts {
-			part = strings.TrimSpace(part)
-			if part == "" {
+		// Check for output redirection using quote-aware parsing
+		redirectIdx := findUnquotedChar(line, '>')
+		if redirectIdx != -1 {
+			if outputFile != "" {
+				return "", nil, errors.New("multiple output redirections are not allowed")
+			}
+			outputFile = strings.TrimSpace(line[redirectIdx+1:])
+			line = strings.TrimSpace(line[:redirectIdx])
+		}
+
+		// Split the input by ';' to handle multiple command chains (quote-aware)
+		commandGroups := splitByUnquotedChar(line, ';')
+
+		for _, group := range commandGroups {
+			group = strings.TrimSpace(group)
+			if group == "" {
 				continue
 			}
 
-			// Use shellquote to properly handle quoted arguments
-			cmdParts, err := shellquote.Split(part)
-			if err != nil {
-				return "", nil, errors.New("invalid command syntax: " + err.Error())
-			}
-			if len(cmdParts) == 0 {
-				return "", nil, errors.New("invalid command syntax")
-			}
+			// Parse piped commands (quote-aware)
+			var prevCmd *ExecCmd
+			pipeParts := splitByUnquotedChar(group, '|')
+			for _, part := range pipeParts {
+				part = strings.TrimSpace(part)
+				if part == "" {
+					continue
+				}
 
-			cmd := &ExecCmd{
-				Cmd:  cmdParts[0],
-				Args: cmdParts[1:],
-			}
+				// Use shellquote to properly handle quoted arguments
+				cmdParts, err := shellquote.Split(part)
+				if err != nil {
+					return "", nil, errors.New("invalid command syntax: " + err.Error())
+				}
+				if len(cmdParts) == 0 {
+					return "", nil, errors.New("invalid command syntax")
+				}
 
-			if prevCmd != nil {
-				prevCmd.Pipe = cmd
-			} else {
-				commands = append(commands, cmd)
-			}
+				cmd := &ExecCmd{
+					Cmd:  cmdParts[0],
+					Args: cmdParts[1:],
+				}
 
-			prevCmd = cmd
+				if prevCmd != nil {
+					prevCmd.Pipe = cmd
+				} else {
+					commands = append(commands, cmd)
+				}
+
+				prevCmd = cmd
+			}
 		}
 	}
 
 	return outputFile, commands, nil
+}
+
+// findUnquotedChar finds the first occurrence of char that's not inside quotes
+// Returns -1 if not found
+func findUnquotedChar(s string, char rune) int {
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
+	for i, c := range s {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+
+		if c == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+			continue
+		}
+
+		if c == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+			continue
+		}
+
+		if !inSingleQuote && !inDoubleQuote && c == char {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// splitByUnquotedChar splits a string by char, but only at positions where char is not quoted
+func splitByUnquotedChar(s string, char rune) []string {
+	var result []string
+	var current strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
+	for _, c := range s {
+		if escaped {
+			current.WriteRune(c)
+			escaped = false
+			continue
+		}
+
+		if c == '\\' {
+			current.WriteRune(c)
+			escaped = true
+			continue
+		}
+
+		if c == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+			current.WriteRune(c)
+			continue
+		}
+
+		if c == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+			current.WriteRune(c)
+			continue
+		}
+
+		if !inSingleQuote && !inDoubleQuote && c == char {
+			result = append(result, current.String())
+			current.Reset()
+			continue
+		}
+
+		current.WriteRune(c)
+	}
+
+	// Add the last part
+	if current.Len() > 0 || len(result) > 0 {
+		result = append(result, current.String())
+	}
+
+	return result
 }

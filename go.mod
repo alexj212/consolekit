@@ -16,6 +16,7 @@ require (
 	github.com/carapace-sh/carapace-shlex v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/reeflective/readline v1.1.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/sys v0.39.0 // indirect
