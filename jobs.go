@@ -34,18 +34,20 @@ type Job struct {
 	mu        sync.RWMutex
 }
 
-// JobManager manages background jobs
+// JobManager manages background jobs and scheduled tasks
 type JobManager struct {
-	jobs   map[int]*Job
-	nextID int
-	mu     sync.RWMutex
+	jobs           map[int]*Job
+	scheduledTasks map[int]*ScheduledTask
+	nextID         int
+	mu             sync.RWMutex
 }
 
 // NewJobManager creates a new job manager
 func NewJobManager() *JobManager {
 	return &JobManager{
-		jobs:   make(map[int]*Job),
-		nextID: 1,
+		jobs:           make(map[int]*Job),
+		scheduledTasks: make(map[int]*ScheduledTask),
+		nextID:         1,
 	}
 }
 
@@ -245,4 +247,46 @@ func (j *Job) Duration() time.Duration {
 	}
 
 	return time.Since(j.StartTime)
+}
+
+// getNextID returns the next available ID for tasks (used internally by schedule commands)
+func (jm *JobManager) getNextID() int {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+	id := jm.nextID
+	jm.nextID++
+	return id
+}
+
+// addScheduledTask adds a scheduled task to tracking
+func (jm *JobManager) addScheduledTask(task *ScheduledTask) {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+	jm.scheduledTasks[task.ID] = task
+}
+
+// getScheduledTask retrieves a scheduled task by ID
+func (jm *JobManager) getScheduledTask(id int) *ScheduledTask {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+	return jm.scheduledTasks[id]
+}
+
+// getScheduledTasks returns all scheduled tasks
+func (jm *JobManager) getScheduledTasks() []*ScheduledTask {
+	jm.mu.RLock()
+	defer jm.mu.RUnlock()
+
+	tasks := make([]*ScheduledTask, 0, len(jm.scheduledTasks))
+	for _, task := range jm.scheduledTasks {
+		tasks = append(tasks, task)
+	}
+	return tasks
+}
+
+// removeScheduledTask removes a scheduled task from tracking
+func (jm *JobManager) removeScheduledTask(id int) {
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
+	delete(jm.scheduledTasks, id)
 }

@@ -12,12 +12,13 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Settings  SettingsConfig            `toml:"settings"`
-	Aliases   map[string]string         `toml:"aliases"`
-	Variables map[string]string         `toml:"variables"`
-	Hooks     HooksConfig               `toml:"hooks"`
-	Logging   LoggingConfig             `toml:"logging"`
-	filePath  string                    // Path to config file
+	Settings     SettingsConfig     `toml:"settings"`
+	Aliases      map[string]string  `toml:"aliases"`
+	Variables    map[string]string  `toml:"variables"`
+	Hooks        HooksConfig        `toml:"hooks"`
+	Logging      LoggingConfig      `toml:"logging"`
+	Notification NotificationConfig `toml:"notification"`
+	filePath     string             // Path to config file
 }
 
 // SettingsConfig contains general settings
@@ -44,6 +45,11 @@ type LoggingConfig struct {
 	LogFailures    bool   `toml:"log_failures"`
 	MaxSizeMB      int    `toml:"max_size_mb"`
 	RetentionDays  int    `toml:"retention_days"`
+}
+
+// NotificationConfig contains notification settings
+type NotificationConfig struct {
+	WebhookURL string `toml:"webhook_url"`
 }
 
 // NewConfig creates a new config with defaults
@@ -78,6 +84,9 @@ func NewConfig(appName string) (*Config, error) {
 			LogFailures:   true,
 			MaxSizeMB:     100,
 			RetentionDays: 90,
+		},
+		Notification: NotificationConfig{
+			WebhookURL: "",
 		},
 		filePath: configPath,
 	}

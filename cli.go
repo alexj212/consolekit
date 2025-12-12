@@ -2,6 +2,7 @@ package consolekit
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alexj212/consolekit/parser"
 	"github.com/alexj212/consolekit/safemap"
@@ -21,18 +23,22 @@ import (
 )
 
 type CLI struct {
-	NoColor        bool
-	rootInit       []func(c *cobra.Command)
-	AppName        string
-	OnExit         func(caller string, code int)
-	InfoString     func(format string, a ...any) string
-	ErrorString    func(format string, a ...any) string
-	Scripts        embed.FS
-	Defaults       *safemap.SafeMap[string, string]
-	TokenReplacers []func(string) (string, bool)
-	aliases        *safemap.SafeMap[string, string] // Per-instance aliases
-	JobManager     *JobManager                      // Background job management
-	Config         *Config                          // Application configuration
+	NoColor         bool
+	rootInit        []func(c *cobra.Command)
+	AppName         string
+	OnExit          func(caller string, code int)
+	InfoString      func(format string, a ...any) string
+	ErrorString     func(format string, a ...any) string
+	SuccessString   func(format string, a ...any) string
+	Scripts         embed.FS
+	Defaults        *safemap.SafeMap[string, string]
+	TokenReplacers  []func(string) (string, bool)
+	aliases         *safemap.SafeMap[string, string] // Per-instance aliases
+	JobManager      *JobManager                      // Background job management
+	Config          *Config                          // Application configuration
+	LogManager      *LogManager                      // Command logging and audit trail
+	TemplateManager *TemplateManager                 // Template system
+	NotifyManager   *NotifyManager                   // Notification system
 
 	// console specific fields
 	app         *console.Console
@@ -56,15 +62,40 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		_ = config.Load() // Ignore errors if config doesn't exist
 	}
 
+	// Set up log file path from config or default
+	var logFile string
+	var templatesDir string
+	if config != nil && config.Logging.LogFile != "" {
+		logFile = config.Logging.LogFile
+	}
+	if currentUser, err := user.Current(); err == nil {
+		name := strings.ToLower(AppName)
+		appDir := filepath.Join(currentUser.HomeDir, fmt.Sprintf(".%s", name))
+		if logFile == "" {
+			logFile = filepath.Join(appDir, "audit.log")
+		}
+		templatesDir = filepath.Join(appDir, "templates")
+	}
+
 	cli := &CLI{
-		AppName:      AppName,
-		InfoString:   color.New(color.FgWhite).SprintfFunc(),
-		ErrorString:  color.New(color.FgRed).SprintfFunc(),
-		Defaults:     safemap.New[string, string](),
-		aliases:      safemap.New[string, string](), // Per-instance aliases
-		JobManager:   NewJobManager(),               // Initialize job manager
-		Config:       config,                        // Initialize configuration
-		maxExecDepth: 10,                            // Prevent infinite recursion
+		AppName:         AppName,
+		InfoString:      color.New(color.FgWhite).SprintfFunc(),
+		ErrorString:     color.New(color.FgRed).SprintfFunc(),
+		SuccessString:   color.New(color.FgGreen).SprintfFunc(),
+		Defaults:        safemap.New[string, string](),
+		aliases:         safemap.New[string, string](),                 // Per-instance aliases
+		JobManager:      NewJobManager(),                               // Initialize job manager
+		Config:          config,                                        // Initialize configuration
+		LogManager:      NewLogManager(logFile),                        // Initialize log manager
+		TemplateManager: NewTemplateManager(templatesDir, embed.FS{}),  // Initialize template manager
+		NotifyManager:   NewNotifyManager(),                            // Initialize notify manager
+		maxExecDepth:    10,                                            // Prevent infinite recursion
+	}
+
+	// Apply logging configuration from config file
+	if config != nil {
+		cli.applyLoggingConfig()
+		cli.applyNotificationConfig()
 	}
 
 	// Set default prompt function
@@ -78,6 +109,7 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 	if cli.NoColor {
 		cli.InfoString = fmt.Sprintf
 		cli.ErrorString = fmt.Sprintf
+		cli.SuccessString = fmt.Sprintf
 		color.NoColor = true
 	}
 
@@ -114,6 +146,17 @@ func (c *CLI) AddAll() {
 	c.AddCommands(AddVariableCommands(c))
 	c.AddCommands(AddConfigCommands(c))
 	c.AddCommands(AddUtilityCommands(c))
+	c.AddCommands(AddLogCommands(c))
+	c.AddCommands(AddPromptCommands(c))
+	c.AddCommands(AddTemplateCommands(c))
+	c.AddCommands(AddDataManipulationCommands(c))
+	c.AddCommands(AddWatchCommand(c))
+	c.AddCommands(AddPipelineCommands(c))
+	c.AddCommands(AddControlFlowCommands(c))
+	c.AddCommands(AddNotifyCommands(c))
+	c.AddCommands(AddScheduleCommands(c))
+	c.AddCommands(AddFormatCommands(c))
+	c.AddCommands(AddClipboardCommands(c))
 
 }
 
@@ -196,6 +239,14 @@ func (c *CLI) replaceToken(cmd *cobra.Command, defs *safemap.SafeMap[string, str
 }
 
 func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (string, error) {
+	return c.ExecuteLineWithContext(context.Background(), line, defs)
+}
+
+// ExecuteLineWithContext executes a command line with context support for cancellation and timeout
+func (c *CLI) ExecuteLineWithContext(ctx context.Context, line string, defs *safemap.SafeMap[string, string]) (string, error) {
+	// Track command execution time for logging
+	startTime := time.Now()
+
 	// Track recursion depth to prevent infinite loops
 	c.execDepth++
 	defer func() { c.execDepth-- }()
@@ -204,15 +255,50 @@ func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (s
 		return "", fmt.Errorf("maximum execution depth exceeded (%d) - possible infinite recursion", c.maxExecDepth)
 	}
 
+	// Check if context is already cancelled
+	select {
+	case <-ctx.Done():
+		return "", fmt.Errorf("command cancelled: %w", ctx.Err())
+	default:
+	}
+
 	rootCmd := c.BuildRootCmd()()
 	line = c.ReplaceDefaults(rootCmd, defs, line)
 
 	outputFile, commands, err := parser.ParseCommands(line)
 	if err != nil {
+		// Log failed command
+		if c.LogManager.IsEnabled() && c.execDepth == 1 {
+			_ = c.LogManager.Log(AuditLog{
+				Timestamp: startTime,
+				User:      c.getCurrentUser(),
+				Command:   line,
+				Duration:  time.Since(startTime),
+				Success:   false,
+				Error:     err.Error(),
+			})
+		}
 		return "", err
 	}
 
-	output, err := c.executeCommands(rootCmd, commands)
+	output, err := c.executeCommandsWithContext(ctx, rootCmd, commands)
+
+	// Log command execution (only log top-level commands, not recursive calls)
+	if c.LogManager.IsEnabled() && c.execDepth == 1 {
+		logEntry := AuditLog{
+			Timestamp: startTime,
+			User:      c.getCurrentUser(),
+			Command:   line,
+			Output:    output,
+			Duration:  time.Since(startTime),
+			Success:   err == nil,
+		}
+		if err != nil {
+			logEntry.Error = err.Error()
+		}
+		_ = c.LogManager.Log(logEntry)
+	}
+
 	if err != nil {
 		return output, err
 	}
@@ -226,6 +312,57 @@ func (c *CLI) ExecuteLine(line string, defs *safemap.SafeMap[string, string]) (s
 	}
 
 	return output, nil
+}
+
+// getCurrentUser returns the current username for logging
+func (c *CLI) getCurrentUser() string {
+	if u, err := user.Current(); err == nil {
+		return u.Username
+	}
+	return "unknown"
+}
+
+// applyLoggingConfig applies logging configuration from config file
+func (c *CLI) applyLoggingConfig() {
+	if c.Config == nil || c.LogManager == nil {
+		return
+	}
+
+	cfg := c.Config.Logging
+
+	// Set enabled state
+	if cfg.Enabled {
+		c.LogManager.Enable()
+	} else {
+		c.LogManager.Disable()
+	}
+
+	// Apply other settings
+	if cfg.LogFile != "" {
+		c.LogManager.SetLogFile(cfg.LogFile)
+	}
+	c.LogManager.SetLogSuccess(cfg.LogSuccess)
+	c.LogManager.SetLogFailures(cfg.LogFailures)
+	if cfg.MaxSizeMB > 0 {
+		c.LogManager.SetMaxSize(int64(cfg.MaxSizeMB))
+	}
+	if cfg.RetentionDays > 0 {
+		c.LogManager.SetRetention(cfg.RetentionDays)
+	}
+}
+
+// applyNotificationConfig applies notification configuration from config file
+func (c *CLI) applyNotificationConfig() {
+	if c.Config == nil || c.NotifyManager == nil {
+		return
+	}
+
+	cfg := c.Config.Notification
+
+	// Set webhook URL if configured
+	if cfg.WebhookURL != "" {
+		c.NotifyManager.SetWebhook(cfg.WebhookURL)
+	}
 }
 
 // writeToFile writes content to a file
@@ -242,14 +379,33 @@ func (c *CLI) writeToFile(filename string, content string) error {
 
 // executeCommands executes parsed commands with piping support
 func (c *CLI) executeCommands(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
+	return c.executeCommandsWithContext(context.Background(), rootCmd, commands)
+}
+
+// executeCommandsWithContext executes parsed commands with context support for cancellation
+func (c *CLI) executeCommandsWithContext(ctx context.Context, rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
 	var output bytes.Buffer
 	var input io.Reader
 
 	for _, cmd := range commands {
+		// Check for cancellation before each command
+		select {
+		case <-ctx.Done():
+			return output.String(), fmt.Errorf("command execution cancelled: %w", ctx.Err())
+		default:
+		}
+
 		var buf bytes.Buffer
 		curCmd := cmd
 
 		for curCmd != nil {
+			// Check for cancellation in pipeline
+			select {
+			case <-ctx.Done():
+				return output.String(), fmt.Errorf("command execution cancelled: %w", ctx.Err())
+			default:
+			}
+
 			args := append([]string{curCmd.Cmd}, curCmd.Args...)
 
 			rootCmd.SetArgs(args)

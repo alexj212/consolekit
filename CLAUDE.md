@@ -80,16 +80,21 @@ Commands are organized into modular functions that return command registration f
   - Output suppression uses `io.Discard` instead of `nil`
   - **Background jobs are tracked** in JobManager with PID and output capture
 - **misc.go**: Utility commands (`cat`, `grep`, `env`)
-- **cmds/jobcmds.go**: Job management commands (`jobs`, `job`, `killall`, `jobclean`)
+- **jobcmds.go**: Job management commands (`jobs`, `job`, `killall`, `jobclean`)
   - Track background processes from `osexec --background` and `spawn` commands
   - View job status, logs, kill jobs, wait for completion
-- **cmds/varcmds.go**: Enhanced variable system (`let`, `unset`, `vars`, `inc`, `dec`)
+- **varcmds.go**: Enhanced variable system (`let`, `unset`, `vars`, `inc`, `dec`)
   - Command substitution with `$(...)` syntax
   - Arithmetic operations support
   - Export to shell script or JSON format
-- **cmds/configcmds.go**: Configuration management (`config get/set/edit/reload/show/path/save`)
+- **configcmds.go**: Configuration management (`config get/set/edit/reload/show/path/save`)
   - TOML-based configuration file
   - Settings, aliases, variables, hooks, and logging configuration
+- **logcmds.go**: Logging and audit trail commands (`log enable/disable/status/show/clear/export/load/config`)
+  - Command execution logging with timestamps, duration, and success/failure tracking
+  - Search and filter logs by command text, date, or status
+  - Export logs to JSON format
+  - Configurable via TOML configuration file
 
 ### Script Execution System (run.go)
 
@@ -154,7 +159,7 @@ Thread-safe generic map used for:
 
 - **Storage**: Variables stored with `@` prefix in `CLI.Defaults` SafeMap
 
-### Configuration System (config.go + cmds/configcmds.go)
+### Configuration System (config.go + configcmds.go)
 
 **Phase 1 Feature**: TOML-based configuration file management
 
@@ -177,6 +182,283 @@ Thread-safe generic map used for:
   - `config save` - Save current state to file
 
 - **Auto-loading**: Configuration automatically loaded on CLI initialization
+
+### Logging & Audit Trail System (logging.go + logcmds.go)
+
+**Phase 2 Feature**: Command execution logging for debugging and compliance
+
+- **Log Location**: `~/.{appname}/audit.log` (configurable)
+
+- **Features**:
+  - **Automatic logging** of all command executions with timestamps
+  - **Duration tracking** for performance analysis
+  - **Success/failure tracking** with error messages
+  - **User tracking** for multi-user environments
+  - **Output capture** (optional, configurable)
+  - **Log rotation** when file size exceeds configurable limit
+  - **In-memory log storage** for quick queries
+  - **JSON export** for external analysis
+
+- **LogManager**:
+  - Thread-safe log management with mutex protection
+  - Configurable log success/failure filtering
+  - Search logs by command text
+  - Filter logs by date range or status
+  - Automatic file rotation based on size limits
+  - Retention policy support
+
+- **Log Commands**:
+  - `log enable` - Enable command logging
+  - `log disable` - Disable command logging
+  - `log status` - Show logging status and configuration
+  - `log show` - Display command logs (with filtering options)
+    - `--last N` - Show last N logs
+    - `--failed` - Show only failed commands
+    - `--search "text"` - Search logs by command text
+    - `--since "YYYY-MM-DD"` - Show logs since date
+    - `--json` - Output in JSON format
+  - `log clear` - Clear all in-memory logs
+  - `log export` - Export logs to JSON format
+  - `log load` - Load logs from file
+  - `log config [setting] [value]` - Configure logging settings
+    - `max_size` - Maximum log file size in MB
+    - `retention` - Log retention period in days
+    - `log_success` - Enable/disable logging of successful commands
+    - `log_failures` - Enable/disable logging of failed commands
+
+- **Configuration** (in config.toml):
+  ```toml
+  [logging]
+  enabled = false
+  log_file = "~/.{appname}/audit.log"
+  log_success = true
+  log_failures = true
+  max_size_mb = 100
+  retention_days = 90
+  ```
+
+- **Integration**: Logging is automatically integrated into `ExecuteLine` and only logs top-level commands (not recursive calls) to avoid log spam
+
+**Security Note**: Audit logs may contain sensitive command arguments and output. Secure the log file appropriately.
+
+### Interactive Prompts System (prompt.go + promptcmds.go)
+
+**Phase 2 Feature**: Interactive user prompts for confirmations and input
+
+- **Features**:
+  - **Confirmation prompts** for yes/no questions
+  - **String input prompts** with optional defaults
+  - **Password prompts** (simplified version)
+  - **Single selection** from options list
+  - **Multi-selection** from options list
+  - **Integer input** with defaults
+  - **Destructive operation confirmation** (requires typing "yes")
+
+- **Prompt Methods** (available on CLI instance):
+  - `cli.Confirm(message)` - Simple yes/no confirmation
+  - `cli.Prompt(message)` - String input
+  - `cli.PromptDefault(message, default)` - String input with default
+  - `cli.PromptPassword(message)` - Password input (simplified)
+  - `cli.Select(message, options)` - Single selection
+  - `cli.SelectWithDefault(message, options, defaultIdx)` - Single selection with default
+  - `cli.MultiSelect(message, options)` - Multiple selection
+  - `cli.ConfirmDestructive(message)` - Destructive confirmation (requires "yes")
+  - `cli.PromptInteger(message, default)` - Integer input with default
+
+- **Interactive Commands**:
+  - `prompt-demo` - Demonstrate all prompt types
+  - `confirm [message]` - Generic confirmation command
+  - `input [message] [--default value]` - Text input command
+  - `select [message] [options...] [--default idx]` - Single selection command
+  - `multiselect [message] [options...]` - Multiple selection command
+
+- **Helper Functions for Command Developers**:
+  - `AddYesFlag(cmd, &yesVar)` - Add --yes flag to skip confirmations
+  - `AddDryRunFlag(cmd, &dryRunVar)` - Add --dry-run flag to simulate
+  - `ConfirmOrSkip(cli, yesFlag, message)` - Confirm or skip if --yes
+  - `ConfirmDestructiveOrSkip(cli, yesFlag, message)` - Destructive confirm or skip
+  - `ShowDryRun(cmd, cli, dryRun, action)` - Show dry-run message
+
+- **Usage Examples**:
+  ```go
+  // In a custom command
+  if !cli.Confirm("Deploy to production?") {
+      cmd.Println("Cancelled")
+      return
+  }
+
+  // With --yes flag
+  var yesFlag bool
+  AddYesFlag(cmd, &yesFlag)
+  if !ConfirmOrSkip(cli, yesFlag, "Delete all data?") {
+      return
+  }
+
+  // Single selection
+  env := cli.Select("Choose environment", []string{"dev", "staging", "prod"})
+
+  // Multi-selection
+  features := cli.MultiSelect("Enable features", []string{"auth", "logging", "cache"})
+  ```
+
+**Design Philosophy**: Interactive prompts improve user safety for destructive operations while maintaining automation capability via `--yes` and `--dry-run` flags.
+
+### Template System (template.go + templatecmds.go)
+
+**Phase 3 Feature**: Script template system with variable substitution
+
+- **Templates Directory**: `~/.{appname}/templates/` (configurable)
+
+- **Features**:
+  - **Go text/template syntax** for variable substitution
+  - **Embedded templates** support via embed.FS
+  - **File system templates** for user-created templates
+  - **Template caching** for performance
+  - **Variable parsing** from command line (key=value format)
+  - **Execute or render** templates
+
+- **TemplateManager**:
+  - Load templates from embedded FS or file system
+  - Cache parsed templates for reuse
+  - Execute templates with variable substitution
+  - List, create, show, delete templates
+  - Clear template cache
+
+- **Template Commands**:
+  - `template list` - List all available templates
+  - `template show [name]` - Display template content
+  - `template exec [name] [key=value...]` - Execute template with variables
+  - `template render [name] [key=value...]` - Render template without executing
+  - `template create [name]` - Create new template interactively
+  - `template delete [name]` - Delete a template
+  - `template clear-cache` - Clear template cache
+
+- **Template Syntax** (Go text/template):
+  ```
+  # deployment.tmpl
+  print "Deploying to {{.Env}}"
+  let region="{{.Region}}"
+  http {{.ApiEndpoint}}/deploy
+  ```
+
+- **Usage Examples**:
+  ```bash
+  # Execute template with variables
+  template exec deployment.tmpl Env=prod Region=us-east-1 ApiEndpoint=https://api.example.com
+
+  # Render template without executing
+  template render deployment.tmpl Env=staging Region=eu-west-1 ApiEndpoint=https://staging.example.com
+
+  # Create a new template
+  template create mydeployment.tmpl
+  # (enter template content, then Ctrl+D)
+
+  # List templates
+  template list
+
+  # Show template
+  template show deployment.tmpl
+
+  # Delete template
+  template delete mydeployment.tmpl
+  ```
+
+**Use Cases**:
+- Parameterized deployment scripts
+- Code generation
+- Repetitive command sequences with variable parameters
+- Environment-specific configurations
+
+### Data Manipulation Commands (datamanipcmds.go)
+
+**Phase 3 Feature**: JSON, CSV, and YAML parsing and conversion
+
+- **JSON Commands**:
+  - `json parse [file] [--pretty]` - Parse and format JSON
+  - `json get [file] [path]` - Extract value using dot notation (e.g., `users.0.name`)
+  - `json validate [file]` - Validate JSON syntax
+
+- **YAML Commands**:
+  - `yaml parse [file]` - Parse and format YAML
+  - `yaml to-json [file]` - Convert YAML to JSON
+  - `yaml from-json [file]` - Convert JSON to YAML
+
+- **CSV Commands**:
+  - `csv parse [file] [--header]` - Parse and display CSV as table
+  - `csv to-json [file]` - Convert CSV to JSON (first row as header)
+
+- **Features**:
+  - Stdin support for all commands (pipe-friendly)
+  - Pretty-printing for JSON output
+  - Dot notation for JSON path traversal
+  - Automatic header detection for CSV
+  - Format conversion pipeline
+
+- **Usage Examples**:
+  ```bash
+  # Parse and pretty-print JSON
+  cat data.json | json parse --pretty
+
+  # Extract nested value
+  json get users.json users.0.email
+
+  # Convert YAML to JSON
+  yaml to-json config.yaml | json parse
+
+  # Convert CSV to JSON
+  csv to-json data.csv > output.json
+
+  # Pipeline example
+  http api.example.com/users | json get results | yaml from-json
+  ```
+
+**Use Cases**:
+- API response parsing
+- Configuration file format conversion
+- Data extraction and transformation
+- Log analysis
+
+### Watch Command (watchcmds.go)
+
+**Phase 3 Feature**: Repeatedly execute a command at a specified interval
+
+- **Command**: `watch [command] [flags]`
+  - `--interval, -n` - Interval between executions (default 2s)
+  - `--count, -c` - Number of times to execute (0 = infinite)
+  - `--clear` - Clear screen before each execution
+
+- **Features**:
+  - Configurable execution interval (e.g., 2s, 500ms, 1m)
+  - Optional iteration limit
+  - Screen clearing support
+  - Iteration counter and timestamps
+  - Automatic error display
+
+- **Usage Examples**:
+  ```bash
+  # Monitor date every 2 seconds (default)
+  watch "date"
+
+  # Monitor jobs every 5 seconds
+  watch --interval 5s "jobs"
+
+  # Run 10 times with screen clearing
+  watch --count 10 --clear "date"
+
+  # Monitor API endpoint status
+  watch -n 1s "http https://api.example.com/health | json get status"
+
+  # Monitor system metrics
+  watch -n 2s --clear "osexec 'ps aux | head -10'"
+  ```
+
+**Use Cases**:
+- Monitoring system resources
+- Tracking job status
+- Polling API endpoints
+- Observing log file changes
+- Testing periodic scripts
+- Report generation
 
 ## Key Design Patterns
 
@@ -207,6 +489,150 @@ The parser now uses `github.com/kballard/go-shellquote` for proper quote and esc
 
 ### Recursion Protection
 `ExecuteLine` tracks recursion depth with `CLI.execDepth` counter. Maximum depth is set to 10 (configurable via `CLI.maxExecDepth`). This prevents infinite loops from circular `@exec:` references or aliases.
+
+### Context Support (cli.go)
+
+**Phase 3 Feature**: Context-aware command execution for cancellation and timeout
+
+- **Methods**:
+  - `ExecuteLine(line, defs)` - Standard execution (uses background context)
+  - `ExecuteLineWithContext(ctx, line, defs)` - Context-aware execution
+
+- **Features**:
+  - Command cancellation via context
+  - Timeout support via `context.WithTimeout`
+  - Deadline support via `context.WithDeadline`
+  - Cancellation checks at command boundaries and in pipelines
+  - Proper error wrapping with `context.Err()`
+
+- **Usage Examples**:
+  ```go
+  // Execute with timeout
+  ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+  defer cancel()
+  output, err := cli.ExecuteLineWithContext(ctx, "http slow-api.example.com", nil)
+
+  // Execute with cancellation
+  ctx, cancel := context.WithCancel(context.Background())
+  go func() {
+    time.Sleep(5 * time.Second)
+    cancel() // Cancel after 5 seconds
+  }()
+  output, err := cli.ExecuteLineWithContext(ctx, "repeat 100 'sleep 1s'", nil)
+  ```
+
+**Design**: Maintains backward compatibility by wrapping `ExecuteLine` to call `ExecuteLineWithContext` with `context.Background()`. Cancellation is checked before each command and at each stage in a pipeline.
+
+### Phase 2 Features (Advanced CLI Capabilities)
+
+**Phase 2 Feature Set**: Additional power-user features implemented in December 2025
+
+#### Pipeline Enhancements (pipelinecmds.go)
+- **tee command**: Read from stdin and write to both stdout and multiple files
+  - `tee file1.txt file2.txt` - Write to multiple files
+  - `tee --append file.txt` - Append mode
+  - Supports multiple file outputs simultaneously
+
+#### Advanced Control Flow (controlflowcmds.go)
+- **case command**: Pattern matching similar to switch/case
+  - `case $env prod "print Production" dev "print Dev" "*" "print Other"`
+  - Supports wildcard patterns
+
+- **while command**: Loop while condition is true
+  - `while "test @i -lt 5" "print @i; inc i"`
+  - Safety limit of 1000 iterations to prevent infinite loops
+
+- **for command**: Iterate over values
+  - `for i in 1 2 3 do "print Item @i"`
+  - Proper variable scoping (saves/restores old values)
+
+- **test command**: Condition testing for loops
+  - Numeric: `-eq`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`
+  - String: `=`, `!=`
+  - Exits with 0 (true) or 1 (false)
+
+#### Notification System (notify.go + notifycmds.go)
+- **NotifyManager**: Cross-platform desktop notifications
+  - Linux: `notify-send` with urgency levels (low, normal, critical)
+  - macOS: `osascript` for system notifications
+  - Windows: PowerShell toast notifications
+
+- **Webhook Support**: HTTP POST notifications
+  - JSON payload with title, message, timestamp
+  - Configurable webhook URL stored in config file
+
+- **Commands**:
+  - `notify send "Title" "Message" --urgency critical`
+  - `notify send "Alert" "Text" --webhook`
+  - `notify config https://hooks.example.com/webhook`
+
+#### Command Scheduling (schedulecmds.go + jobs.go)
+- **ScheduledTask**: Background task execution with timing control
+  - Tracked in JobManager.scheduledTasks map
+  - Supports one-time and repeating tasks
+  - Pause/resume for repeating tasks
+
+- **Commands**:
+  - `schedule at 14:30 "print Reminder"` - Run at specific time
+  - `schedule in 5m "print Done"` - Run after delay
+  - `schedule every 1h "print Tick"` - Repeat at interval
+  - `schedule list` - Show all scheduled tasks
+  - `schedule cancel [id]` - Stop a scheduled task
+  - `schedule pause [id]` / `schedule resume [id]` - Control repeating tasks
+
+- **Implementation**: Uses `time.Timer` for one-time tasks, `time.Ticker` for repeating
+
+#### Enhanced History (history.go)
+- **HistoryBookmark**: Persistent command bookmarks with metadata
+  - Stored in `~/.{appname}.bookmarks` as JSON
+  - Includes name, command, description, timestamp
+
+- **New Commands**:
+  - `history bookmark add name "command" -d "description"`
+  - `history bookmark list` - Show all bookmarks
+  - `history bookmark run name` - Execute bookmarked command
+  - `history bookmark remove name` - Delete bookmark
+  - `history replay 5` - Re-execute command at index 5
+  - `history stats` - Show usage statistics (total, unique, top 10 most used)
+
+- **Features**: Bookmark management separate from history, replay by index, detailed stats
+
+#### Output Formatting (formatcmds.go)
+- **table command**: Format delimited input as aligned table
+  - `table --delim ","` - Custom delimiter (default: whitespace)
+  - `table --headers` - First line as headers with separator
+
+- **highlight command**: Regex-based text highlighting
+  - `highlight "Error|Warning" --color red`
+  - Colors: red, green, blue, yellow, magenta, cyan
+  - Respects `CLI.NoColor` setting
+
+- **page command**: Simple pagination
+  - `page --size 20` - Lines per page
+  - Basic implementation (shows first page)
+
+- **column command**: Columnize output
+  - `column --count 3` - Number of columns
+  - Auto-calculates column widths
+
+#### Clipboard Integration (clipboardcmds.go)
+- **clip command**: Copy stdin to system clipboard
+  - Linux: Uses `xclip` or `xsel`
+  - macOS: Uses `pbcopy`
+  - Windows: Uses `clip.exe`
+
+- **paste command**: Output clipboard contents
+  - Linux: Uses `xclip` or `xsel`
+  - macOS: Uses `pbpaste`
+  - Windows: Uses PowerShell `Get-Clipboard`
+
+- **Usage**: `print "text" | clip`, `paste | grep pattern`
+
+#### Config Extensions
+- **NotificationConfig**: Added to config.go
+  - `WebhookURL string` - Persistent webhook configuration
+  - Automatically loaded via `applyNotificationConfig()`
+  - Saved via `notify config` command
 
 ### Cobra Flag Parsing
 `DisableFlagParsing: true` is set on the root command because the parser handles command-line parsing independently before Cobra execution.

@@ -139,6 +139,23 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 
 			},
 		}
+
+		// aliasPathCmd shows the path to the aliases file
+		var aliasPathCmd = &cobra.Command{
+			Use:   "path",
+			Short: "Show the path to the aliases file",
+			Long:  `Display the full path to the aliases file location.`,
+			Run: func(cmd *cobra.Command, args []string) {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					cmd.Printf(cli.ErrorString("unable to get home directory: %v\n", err))
+					return
+				}
+				aliasesFilePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", cli.AppName))
+				cmd.Printf("%s\n", aliasesFilePath)
+			},
+		}
+
 		aliasCmd.AddCommand(AliasAddCmd)
 		aliasCmd.AddCommand(aliasDeleteCmd)
 		aliasCmd.AddCommand(aliasDefaultsCmd)
@@ -146,6 +163,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 
 		aliasCmd.AddCommand(aliasListCmd)
 		aliasCmd.AddCommand(aliasPrintCmd)
+		aliasCmd.AddCommand(aliasPathCmd)
 
 		rootCmd.AddCommand(aliasCmd)
 
@@ -219,16 +237,6 @@ func (c *CLI) AddDefaultAlias(alias, expanded string) {
 
 func (c *CLI) AddDefaultAliases(cmd *cobra.Command) {
 	c.aliases.Set("pp", "print test")
-	c.aliases.Set("lsu", "service list user")
-	c.aliases.Set("s", "service list")
-	c.aliases.Set("lsp", "service list proto")
-	c.aliases.Set("lsx", "service list proxy")
-	c.aliases.Set("wbot", "remote 'who -r --bot'")
-	c.aliases.Set("bots", "remote 'who -r --bot'")
-	c.aliases.Set("wb", "remote 'who -r --bot'")
-	c.aliases.Set("w", "remote 'who -r'")
-	c.aliases.Set("expr", "client expr")
-	c.aliases.Set("abdicate", "remote 'system abdicate'")
 
 	err := c.SaveAliases(cmd)
 	if err != nil {
@@ -266,6 +274,8 @@ func (c *CLI) SaveAliases(cmd *cobra.Command) error {
 		}
 		return false
 	})
+
+	cmd.Printf(c.InfoString("aliases saved to `%s`\n", filePath))
 
 	// Flush the buffered writer to ensure all data is written
 	err = writer.Flush()
