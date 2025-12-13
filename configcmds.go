@@ -252,7 +252,7 @@ func applyConfig(cli *CLI) {
 
 	// Apply aliases from config
 	for k, v := range cli.Config.Aliases {
-		cli.Defaults.Set(k, v)
+		cli.aliases.Set(k, v)
 	}
 
 	// Apply variables from config
@@ -282,8 +282,10 @@ func syncStateToConfig(cli *CLI) {
 
 	// Sync aliases
 	cli.Config.Aliases = make(map[string]string)
-	// Note: aliases are stored in cli.aliases SafeMap (not in Defaults)
-	// We would need to add an export method to sync them
+	cli.aliases.ForEach(func(k, v string) bool {
+		cli.Config.Aliases[k] = v
+		return false
+	})
 
 	// Sync variables
 	cli.Config.Variables = make(map[string]string)
