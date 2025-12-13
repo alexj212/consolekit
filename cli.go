@@ -83,13 +83,13 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		ErrorString:     color.New(color.FgRed).SprintfFunc(),
 		SuccessString:   color.New(color.FgGreen).SprintfFunc(),
 		Defaults:        safemap.New[string, string](),
-		aliases:         safemap.New[string, string](),                 // Per-instance aliases
-		JobManager:      NewJobManager(),                               // Initialize job manager
-		Config:          config,                                        // Initialize configuration
-		LogManager:      NewLogManager(logFile),                        // Initialize log manager
-		TemplateManager: NewTemplateManager(templatesDir, embed.FS{}),  // Initialize template manager
-		NotifyManager:   NewNotifyManager(),                            // Initialize notify manager
-		maxExecDepth:    10,                                            // Prevent infinite recursion
+		aliases:         safemap.New[string, string](),                // Per-instance aliases
+		JobManager:      NewJobManager(),                              // Initialize job manager
+		Config:          config,                                       // Initialize configuration
+		LogManager:      NewLogManager(logFile),                       // Initialize log manager
+		TemplateManager: NewTemplateManager(templatesDir, embed.FS{}), // Initialize template manager
+		NotifyManager:   NewNotifyManager(),                           // Initialize notify manager
+		maxExecDepth:    10,                                           // Prevent infinite recursion
 	}
 
 	// Apply logging configuration from config file
@@ -141,7 +141,6 @@ func (c *CLI) AddAll() {
 	c.AddCommands(AddMisc())
 	c.AddCommands(AddBaseCmds(c))
 	c.AddCommands(AddScriptingCmds(c))
-
 	c.AddCommands(AddJobCommands(c))
 	c.AddCommands(AddVariableCommands(c))
 	c.AddCommands(AddConfigCommands(c))
