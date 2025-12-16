@@ -29,8 +29,9 @@ var (
 )
 
 func main() {
-	customizer := func(cli *consolekit.CLI) error {
 
+	customizer := func(cli *consolekit.CLI) error {
+		cli.Scripts = Data
 		cli.AddAll()
 		cli.AddCommands(consolekit.AddRun(cli, Data))
 
@@ -59,7 +60,7 @@ func main() {
 		fmt.Printf("consolekit.NewCLI error, %v\n", err)
 		return
 	}
-	cli.Scripts = Data
+
 	err = cli.AppBlock()
 	if err != nil {
 		fmt.Printf("Error, %v\n", err)

@@ -18,6 +18,120 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
+		var lsCmdFunc = func(cmd *cobra.Command, args []string) {
+			dir := "."
+
+			if len(args) > 0 {
+				dir = args[0]
+			}
+
+			// Check if listing embedded files (@ prefix)
+			if strings.HasPrefix(dir, "@") {
+				// Remove @ prefix and get directory path (default to root)
+				embedPath := strings.TrimPrefix(dir, "@")
+				if embedPath == "" {
+					embedPath = "."
+				}
+
+				entries, err := scripts.ReadDir(embedPath)
+				if err != nil {
+					cmd.Printf("Error reading embedded files: %v\n", err)
+					return
+				}
+
+				cmd.Printf("%s\n", cli.InfoString("Listing embedded files in: @%s", embedPath))
+				cmd.Printf("%s\n", strings.Repeat("-", 80))
+
+				dirCount := 0
+				fileCount := 0
+
+				for _, entry := range entries {
+					if entry.IsDir() {
+						cmd.Printf("%s  %s\n", cli.InfoString("[DIR]"), cli.InfoString(entry.Name()+"/"))
+						dirCount++
+					} else {
+						// Get file info for size and timestamp
+						info, err := entry.Info()
+						var sizeStr string
+						var timeStr string
+						if err == nil {
+							sizeStr = fmt.Sprintf("%10d bytes", info.Size())
+							timeStr = info.ModTime().Format("2006-01-02 15:04:05")
+						} else {
+							sizeStr = "          -"
+							timeStr = "                   -"
+						}
+						cmd.Printf("%s  %-20s  %-19s  @%s/%s\n",
+							"[FILE]", sizeStr, timeStr, embedPath, entry.Name())
+						fileCount++
+					}
+				}
+
+				cmd.Printf("%s\n", strings.Repeat("-", 80))
+				cmd.Printf("Total: %d directories, %d files\n", dirCount, fileCount)
+				return
+			}
+
+			// List regular filesystem files
+			cmd.Printf("%s\n", cli.InfoString("Listing files in: %s", dir))
+			files, err := ListFiles(dir, "")
+			if err != nil {
+				cmd.Printf("Error listing files: %v\n", err)
+				return
+			}
+
+			cmd.Printf("%s\n", strings.Repeat("-", 80))
+
+			dirCount := 0
+			fileCount := 0
+
+			// Print the sorted files with better formatting
+			for _, file := range files {
+				if file.IsDir {
+					cmd.Printf("%s  %s  %s\n",
+						cli.InfoString("[DIR]"),
+						file.Timestamp.Format("2006-01-02 15:04:05"),
+						cli.InfoString(file.FullPath+"/"))
+					dirCount++
+				} else {
+					cmd.Printf("%s  %10d bytes  %-19s  %s\n",
+						"[FILE]",
+						file.Size,
+						file.Timestamp.Format("2006-01-02 15:04:05"),
+						file.FullPath)
+					fileCount++
+				}
+			}
+
+			cmd.Printf("%s\n", strings.Repeat("-", 80))
+			cmd.Printf("Total: %d directories, %d files\n", dirCount, fileCount)
+		} // lsCmdFunc
+
+		var lsCmd = &cobra.Command{
+			Use:     "ls [dir | @[path]]",
+			Aliases: []string{"list", "l"},
+			Short:   "List files and directories with full paths",
+			Long: `List files and directories in the filesystem or embedded files.
+
+When no argument is provided, lists the current directory.
+Use '@' prefix to list embedded files from the scripts filesystem.
+Directories are displayed with a '/' suffix and shown before files.
+Full paths are displayed for all entries.`,
+			Example: `  # List current directory
+  ls
+
+  # List embedded scripts
+  ls @
+
+  # List files in specific directory
+  ls /path/to/directory
+
+  # List embedded subdirectory
+  ls @subdir`,
+			Run: lsCmdFunc,
+		}
+		rootCmd.AddCommand(lsCmd)
+
 		var viewScriptCmdFunc = func(cmd *cobra.Command, args []string) {
 
 			if args[0] == "@" {

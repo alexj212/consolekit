@@ -11,20 +11,49 @@ import (
 )
 
 // AddMisc adds the commands echo and cat
-func AddMisc() func(cmd *cobra.Command) {
+func AddMisc(cli *CLI) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
 		var catCmd = &cobra.Command{
-			Use:   "cat [file]",
-			Short: "Displays the contents of a file",
+			Use:   "cat [file | @file]",
+			Short: "Displays the contents of a file or embedded file",
+			Long: `Displays the contents of a file from the filesystem or embedded files.
+
+Use '@' prefix to read embedded files from the scripts filesystem.`,
+			Example: `  # Read a regular file
+  cat file.txt
+
+  # Read an embedded file
+  cat @test.run
+
+  # Read embedded file with path
+  cat @scripts/setup.sh`,
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				content, err := os.ReadFile(args[0])
-				if err != nil {
-					return fmt.Errorf("could not read file: %s error: %v", args[0], err)
+				filename := args[0]
+
+				// Check if reading from embedded files
+				if strings.HasPrefix(filename, "@") {
+					// Remove @ prefix
+					embedPath := strings.TrimPrefix(filename, "@")
+					// Remove leading ./ if present
+					embedPath = strings.TrimPrefix(embedPath, "./")
+
+					content, err := cli.Scripts.ReadFile(embedPath)
+					if err != nil {
+						return fmt.Errorf("could not read embedded file: %s error: %v", filename, err)
+					}
+					cmd.Printf("%s", string(content))
+					return nil
 				}
-				cmd.Printf("%s\n", string(content))
+
+				// Read from regular filesystem
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					return fmt.Errorf("could not read file: %s error: %v", filename, err)
+				}
+				cmd.Printf("%s", string(content))
 				return nil
 			},
 		}

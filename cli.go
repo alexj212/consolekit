@@ -138,7 +138,7 @@ func (c *CLI) AddAll() {
 	c.AddCommands(AddAlias(c))
 	c.AddCommands(AddOSExec(c))
 	c.AddCommands(AddHistory(c))
-	c.AddCommands(AddMisc())
+	c.AddCommands(AddMisc(c))
 	c.AddCommands(AddBaseCmds(c))
 	c.AddCommands(AddScriptingCmds(c))
 	c.AddCommands(AddJobCommands(c))
@@ -201,6 +201,29 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, 
 			return input
 		}
 	}
+	input = c.replaceToken(cmd, defs, input)
+
+	return input
+}
+
+// ReplaceTokens replaces only variables (@tokens), NOT aliases.
+// Use this for processing command arguments to prevent alias expansion in the middle of commands.
+func (c *CLI) ReplaceTokens(cmd *cobra.Command, defs *safemap.SafeMap[string, string], input string) string {
+	// Replace variables from Defaults (with @ prefix)
+	c.Defaults.ForEach(func(k string, v string) bool {
+		input = strings.ReplaceAll(input, k, v)
+		return false
+	})
+
+	// Apply custom token replacers
+	for _, e := range c.TokenReplacers {
+		input, stop := e(input)
+		if stop {
+			return input
+		}
+	}
+
+	// Replace built-in tokens (@env:, @exec:, etc.)
 	input = c.replaceToken(cmd, defs, input)
 
 	return input
@@ -462,6 +485,10 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 func (c *CLI) AppBlock() error {
 	// Create a new console application
 	c.app = console.New(c.AppName)
+
+	// Disable automatic quote/bracket pairing in readline
+	shell := c.app.Shell()
+	shell.Config.Set("autopairs", false)
 
 	// Get the active menu (default menu)
 	menu := c.app.ActiveMenu()

@@ -58,7 +58,8 @@ func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
 		var printCmdFunc = func(cmd *cobra.Command, args []string) {
 			line := strings.Join(args, " ")
 
-			line = cli.ReplaceDefaults(cmd, nil, line)
+			// Use ReplaceTokens instead of ReplaceDefaults to avoid alias expansion in arguments
+			line = cli.ReplaceTokens(cmd, nil, line)
 
 			cmd.Printf("%s\n", line)
 		}
@@ -291,7 +292,8 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				key := args[0]
 				value := args[1]
 
-				value = cli.ReplaceDefaults(cmd, nil, value)
+				// Use ReplaceTokens instead of ReplaceDefaults to avoid alias expansion
+				value = cli.ReplaceTokens(cmd, nil, value)
 
 				key = fmt.Sprintf("@%s", key)
 				overwrite, _ := cmd.Flags().GetBool("overwrite")

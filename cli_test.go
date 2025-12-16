@@ -53,7 +53,7 @@ func TestExecuteLinePrint(t *testing.T) {
 func TestExecuteLinePiping(t *testing.T) {
 	cli, err := NewCLI("test", func(c *CLI) error {
 		AddBaseCmds(c)
-		AddMisc()
+		AddMisc(c)
 		return nil
 	})
 	if err != nil {
