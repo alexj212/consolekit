@@ -144,27 +144,27 @@ Full paths are displayed for all entries.`,
 
 		var viewScriptCmdFunc = func(cmd *cobra.Command, args []string) {
 
-			if args[0] == "@" {
-				f, err := scripts.ReadDir(".")
-				if err != nil {
-					cmd.Printf("Error reading scripts: %v\n", err)
-					return
-				}
-
-				cmd.Printf("Scripts Available:\n")
-				for _, script := range f {
-					if strings.HasSuffix(script.Name(), ".go") {
-						continue
-					}
-					cmd.Printf("@%s\n", script.Name())
-				}
-				return
-			}
-
 			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
 				cmd.Printf(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
 				return
+			}
+
+			// Helper function to check if a command exists
+			commandExists := func(cmdName string) bool {
+				rootCmd := cmd.Root()
+				for _, c := range rootCmd.Commands() {
+					if c.Name() == cmdName {
+						return true
+					}
+					// Check aliases too
+					for _, alias := range c.Aliases {
+						if alias == cmdName {
+							return true
+						}
+					}
+				}
+				return false
 			}
 
 			cmd.Printf("Script file: %s - %d commands\n", args[0], len(cmds))
@@ -173,7 +173,23 @@ Full paths are displayed for all entries.`,
 					continue
 				}
 				cmdLine = strings.TrimSpace(cmdLine)
-				cmd.Printf("%s\n", cmdLine)
+
+				// Parse the first token to check if it's a valid command
+				tokens, err := shellquote.Split(cmdLine)
+				if err != nil || len(tokens) == 0 {
+					// If parsing fails or no tokens, print as-is
+					cmd.Printf("%s\n", cmdLine)
+					continue
+				}
+
+				firstToken := tokens[0]
+				if commandExists(firstToken) {
+					// Valid command - print in green
+					cmd.Printf("%s\n", cli.SuccessString("%s", cmdLine))
+				} else {
+					// Invalid command - print in red
+					cmd.Printf("%s\n", cli.ErrorString("%s", cmdLine))
+				}
 			}
 		}
 		var viewScriptCmd = &cobra.Command{

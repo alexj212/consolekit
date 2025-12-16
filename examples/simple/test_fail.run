@@ -1,0 +1,4 @@
+print test1 . run script
+bad cmd
+
+exit
