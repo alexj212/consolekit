@@ -47,7 +47,12 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 
 				for _, entry := range entries {
 					if entry.IsDir() {
-						cmd.Printf("%s  %s\n", cli.InfoString("[DIR]"), cli.InfoString(entry.Name()+"/"))
+						// Format the path: use @dirname/ for root, @path/dirname/ for subdirs
+						dirPath := "@" + entry.Name() + "/"
+						if embedPath != "." {
+							dirPath = "@" + embedPath + "/" + entry.Name() + "/"
+						}
+						cmd.Printf("%s  %s\n", cli.InfoString("[DIR]"), cli.InfoString(dirPath))
 						dirCount++
 					} else {
 						// Get file info for size and timestamp
@@ -61,8 +66,13 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 							sizeStr = "          -"
 							timeStr = "                   -"
 						}
-						cmd.Printf("%s  %-20s  %-19s  @%s/%s\n",
-							"[FILE]", sizeStr, timeStr, embedPath, entry.Name())
+						// Format the path: use @filename for root, @path/filename for subdirs
+						filePath := "@" + entry.Name()
+						if embedPath != "." {
+							filePath = "@" + embedPath + "/" + entry.Name()
+						}
+						cmd.Printf("%s  %-20s  %-19s  %s\n",
+							"[FILE]", sizeStr, timeStr, filePath)
 						fileCount++
 					}
 				}
