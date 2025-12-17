@@ -487,12 +487,44 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 func (c *CLI) Run() error {
 	// Check if we have command-line arguments
 	if len(os.Args) > 1 {
-		// Execute command directly without entering REPL
-		return c.ExecuteArgs(os.Args[1:])
+		// Check if we have an actual command or just flags
+		hasCommand := c.hasNonFlagArgs()
+		if hasCommand {
+			// Execute command directly without entering REPL
+			return c.ExecuteArgs(os.Args[1:])
+		}
 	}
 
-	// No arguments, start REPL
+	// No arguments or only flags, start REPL
 	return c.AppBlock()
+}
+
+// hasNonFlagArgs checks if command-line arguments contain an actual command (non-flag argument)
+func (c *CLI) hasNonFlagArgs() bool {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+
+		// Empty arg or starts with dash = flag
+		if len(arg) == 0 || arg[0] == '-' {
+			// Check if this flag has a value (not --flag=value style)
+			if !strings.Contains(arg, "=") {
+				// Common flags that take values - skip the next arg
+				if i+1 < len(os.Args) &&
+				   (arg == "-c" || arg == "--config" ||
+				    arg == "-d" || arg == "--saveDir" ||
+				    arg == "-s" || arg == "--save" ||
+				    arg == "-o" || arg == "--output" ||
+				    arg == "-f" || arg == "--file") {
+					i++ // Skip the next arg (flag value)
+				}
+			}
+			continue
+		}
+
+		// Found a non-flag argument, it's a command
+		return true
+	}
+	return false
 }
 
 // ExecuteArgs executes command-line arguments directly using Cobra
