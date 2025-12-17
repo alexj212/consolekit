@@ -156,6 +156,7 @@ func (c *CLI) AddAll() {
 	c.AddCommands(AddScheduleCommands(c))
 	c.AddCommands(AddFormatCommands(c))
 	c.AddCommands(AddClipboardCommands(c))
+	c.AddCommands(AddMCPCommands(c))
 
 }
 
@@ -479,6 +480,26 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 		SetRecursiveHelpFunc(rootCmd)
 		return rootCmd
 	}
+}
+
+// Run executes command-line arguments if present, otherwise starts the REPL
+// This is the recommended entry point for CLI applications
+func (c *CLI) Run() error {
+	// Check if we have command-line arguments
+	if len(os.Args) > 1 {
+		// Execute command directly without entering REPL
+		return c.ExecuteArgs(os.Args[1:])
+	}
+
+	// No arguments, start REPL
+	return c.AppBlock()
+}
+
+// ExecuteArgs executes command-line arguments directly using Cobra
+func (c *CLI) ExecuteArgs(args []string) error {
+	rootCmd := c.BuildRootCmd()()
+	rootCmd.SetArgs(args)
+	return rootCmd.Execute()
 }
 
 // AppBlock starts the REPL loop (maintains API compatibility)

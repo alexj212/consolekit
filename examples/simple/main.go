@@ -61,7 +61,8 @@ func main() {
 		return
 	}
 
-	err = cli.AppBlock()
+	// Run will execute command-line args if present, otherwise start REPL
+	err = cli.Run()
 	if err != nil {
 		fmt.Printf("Error, %v\n", err)
 	}

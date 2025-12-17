@@ -16,11 +16,26 @@ go build
 
 # Run the example application
 cd examples/simple
-go run main.go
+go build
+
+# Run in REPL mode (no arguments)
+./simple
+
+# Run a command directly (command-line mode)
+./simple mcp info
+./simple version
+./simple print "Hello World"
+
+# Start MCP server for external integration
+./simple mcp start
 
 # Run tests (if available)
 go test ./...
 ```
+
+**Entry Point**: Applications should use `cli.Run()` as the entry point, which automatically:
+- Executes command-line arguments if provided (e.g., `./app mcp start`)
+- Starts the REPL if no arguments are provided (e.g., `./app`)
 
 ## Core Architecture
 
@@ -459,6 +474,80 @@ Thread-safe generic map used for:
 - Observing log file changes
 - Testing periodic scripts
 - Report generation
+
+### MCP Server Integration (mcp.go + mcpcmds.go)
+
+**Phase 3 Feature**: Model Context Protocol server for external tool integration
+
+- **MCP Server**: Exposes CLI commands as MCP tools via stdio
+  - JSON-RPC 2.0 protocol over stdin/stdout
+  - Automatic tool discovery from Cobra commands
+  - Flag-to-parameter schema conversion
+  - Resource exposure (templates, scripts)
+  - Full context support for cancellation and timeouts
+
+- **Commands**:
+  - `mcp start` - Start the MCP stdio server
+  - `mcp info` - Show server information and configuration
+  - `mcp list-tools` - List all available MCP tools
+
+- **Features**:
+  - **Automatic Tool Generation**: All CLI commands exposed as MCP tools
+  - **Schema Generation**: Command flags converted to JSON Schema input parameters
+  - **Resource Discovery**: Templates and scripts accessible as MCP resources
+  - **Standards Compliant**: Follows MCP specification 2024-11-05
+
+- **Claude Desktop Integration**:
+  ```json
+  {
+    "mcpServers": {
+      "myapp": {
+        "command": "/full/path/to/myapp",
+        "args": ["mcp", "start"]
+      }
+    }
+  }
+  ```
+
+- **Tool Mapping**:
+  - Command name → Tool name (e.g., `alias add` → `"alias add"`)
+  - Short description → Tool description
+  - Cobra flags → Input schema properties
+  - Positional arguments → `_args` parameter
+
+- **Usage Examples**:
+  ```bash
+  # Get MCP server information
+  mcp info
+
+  # List all available tools
+  mcp list-tools
+
+  # Start MCP server (for external clients)
+  mcp start
+  ```
+
+**Use Cases**:
+- Claude Desktop integration for AI-assisted CLI operations
+- IDE integration for command discovery and execution
+- Automation frameworks requiring CLI tool discovery
+- Remote CLI execution via MCP protocol
+- Tool documentation generation
+
+**Implementation Notes**:
+- Server uses `BuildRootCmd()` to access commands dynamically
+- Works in both REPL and non-REPL modes
+- Hidden commands are excluded from tool list
+- Parent-only commands (no Run function) are recursively expanded
+- Error messages are included in tool call responses
+
+**Security Considerations**:
+- MCP exposes all CLI commands to external clients
+- Ensure proper access control at the MCP client level
+- Consider limiting which commands are exposed for production use
+- Audit logging recommended for MCP command executions
+
+**Documentation**: See [MCP_INTEGRATION.md](./MCP_INTEGRATION.md) for detailed integration guide.
 
 ## Key Design Patterns
 
