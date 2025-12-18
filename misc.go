@@ -29,7 +29,7 @@ Use '@' prefix to read embedded files from the scripts filesystem.`,
 
   # Read embedded file with path
   cat @scripts/setup.sh`,
-			Args:  cobra.ExactArgs(1),
+			Args: cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				filename := args[0]
 
@@ -53,7 +53,7 @@ Use '@' prefix to read embedded files from the scripts filesystem.`,
 				if err != nil {
 					return fmt.Errorf("could not read file: %s error: %v", filename, err)
 				}
-				cmd.Printf("%s", string(content))
+				cmd.Printf("%s\n\n", string(content))
 				return nil
 			},
 		}
