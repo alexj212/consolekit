@@ -239,24 +239,28 @@ Full paths are displayed for all entries.`,
 
 			doExec := func() {
 				startTime := time.Now()
-				cmd.Printf("Executing file: %s - %d commands\n", args[0], len(cmds))
+				cmd.Printf("%s\n", cli.InfoString("Executing file: %s - %d commands", args[0], len(cmds)))
 
 				for _, cmdLine := range cmds {
 					if cmdLine == "" {
 						continue
 					}
 
-					//cmd.Printf("doExec: %s\n", cmdLine)
+					// Show the command being executed in cyan/info color
+					cmd.Printf("%s\n", cli.InfoString("→ %s", strings.TrimSpace(cmdLine)))
+					
 					res, err := cli.ExecuteLine(cmdLine, scriptDefs)
-					cmd.Printf("%s\n", res)
+					if res != "" {
+						cmd.Printf("%s\n", res)
+					}
 					if err != nil {
-						cmd.Printf(cli.ErrorString("error executing command: %s, %s\n", cmdLine, err))
+						cmd.Printf("%s\n", cli.ErrorString("✗ error executing command: %s", err))
 						break
 					}
 				}
 				elapsed := time.Since(startTime)
 				timeSince := HumanizeDuration(elapsed, false)
-				cmd.Printf("script `%s` - Execution time: %s\n", args[0], timeSince)
+				cmd.Printf("%s\n", cli.SuccessString("✓ script `%s` completed - Execution time: %s", args[0], timeSince))
 			}
 
 			if spawn {
