@@ -146,7 +146,7 @@ Full paths are displayed for all entries.`,
 
 			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Printf(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
+				cmd.Print(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
 				return
 			}
 
@@ -227,40 +227,61 @@ Full paths are displayed for all entries.`,
 
 			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Printf(cli.ErrorString("error loading file %s, %s\n", args[0], err))
+				cmd.Print(cli.ErrorString("error loading file %s, %s\n", args[0], err))
 				return
 			}
 
 			spawn, err := cmd.Flags().GetBool("spawn")
 			if err != nil {
-				cmd.Printf(cli.ErrorString("unable to get flag spawn, %v\n", err))
+				cmd.Print(cli.ErrorString("unable to get flag spawn, %v\n", err))
+				return
+			}
+
+			quiet, err := cmd.Flags().GetBool("quiet")
+			if err != nil {
+				cmd.Print(cli.ErrorString("unable to get flag quiet, %v\n", err))
 				return
 			}
 
 			doExec := func() {
 				startTime := time.Now()
-				cmd.Printf("%s\n", cli.InfoString("Executing file: %s - %d commands", args[0], len(cmds)))
+				if !quiet {
+					cmd.Printf("%s\n", cli.InfoString("▶ Executing file: %s - %d commands", args[0], len(cmds)))
+				}
 
+				execCount := 0
 				for _, cmdLine := range cmds {
 					if cmdLine == "" {
 						continue
 					}
 
-					// Show the command being executed in cyan/info color
-					cmd.Printf("%s\n", cli.InfoString("→ %s", strings.TrimSpace(cmdLine)))
+					// Show the command being executed with arrow prefix (unless quiet)
+					if !quiet {
+						cmd.Printf("%s\n", cli.InfoString("  → %s", strings.TrimSpace(cmdLine)))
+					}
 					
 					res, err := cli.ExecuteLine(cmdLine, scriptDefs)
 					if res != "" {
 						cmd.Printf("%s\n", res)
 					}
 					if err != nil {
-						cmd.Printf("%s\n", cli.ErrorString("✗ error executing command: %s", err))
+						if !quiet {
+							cmd.Printf("%s\n", cli.ErrorString("  ✗ Error executing command: %s", err))
+						}
 						break
 					}
+					execCount++
 				}
-				elapsed := time.Since(startTime)
-				timeSince := HumanizeDuration(elapsed, false)
-				cmd.Printf("%s\n", cli.SuccessString("✓ script `%s` completed - Execution time: %s", args[0], timeSince))
+				
+				if !quiet {
+					elapsed := time.Since(startTime)
+					timeSince := HumanizeDuration(elapsed, false)
+					if execCount == len(cmds) {
+						cmd.Printf("%s\n", cli.SuccessString("✓ Script '%s' completed successfully - %d commands in %s", args[0], execCount, timeSince))
+					} else {
+						cmd.Printf("%s\n", cli.WarningString("⚠ Script '%s' partially completed - %d/%d commands in %s", args[0], execCount, len(cmds), timeSince))
+					}
+				}
 			}
 
 			if spawn {
@@ -271,8 +292,15 @@ Full paths are displayed for all entries.`,
 		}
 
 		var runScriptCmd = &cobra.Command{
-			Use:   "run [--spawn] {file | @file | @ } [args]...",
+			Use:   "run [--spawn] [--quiet] {file | @file | @ } [args]...",
 			Short: "exec script file, use `@name` files for internal scripts. pass args that can be referenced in script as @arg0, @arg1, ...",
+			Long: `Execute a script file with optional flags.
+
+Flags:
+  --spawn    Run the script in the background
+  --quiet    Suppress execution headers and command echoing, only show command output
+
+Arguments can be passed after the filename and referenced in the script as @arg0, @arg1, etc.`,
 			Args:  cobra.MinimumNArgs(1),
 			PostRun: func(cmd *cobra.Command, args []string) {
 				ResetHelpFlagRecursively(cmd)
@@ -288,13 +316,13 @@ Full paths are displayed for all entries.`,
 				cmdLine := strings.Join(args, " ")
 				cmdLineArgs, err := shellquote.Split(cmdLine)
 				if err != nil {
-					cmd.Printf(cli.ErrorString("error splitting cmd `%s`, %s\n", cmdLine, err))
+					cmd.Print(cli.ErrorString("error splitting cmd `%s`, %s\n", cmdLine, err))
 					return
 				}
 				cmd.Printf("spawn cmd: %s | %s\n", rootCmd.Use, cmdLine)
 				rootCmd.SetArgs(cmdLineArgs)
 				if err := rootCmd.Execute(); err != nil {
-					cmd.Printf(cli.ErrorString("error %s executing command: %s, %s\n", rootCmd.Name(), cmdLine, err))
+					cmd.Print(cli.ErrorString("error %s executing command: %s, %s\n", rootCmd.Name(), cmdLine, err))
 					return
 				}
 			}()
@@ -314,6 +342,7 @@ Full paths are displayed for all entries.`,
 		rootCmd.AddCommand(spawnScriptCmd)
 
 		runScriptCmd.Flags().Bool("spawn", false, "run script in background")
+		runScriptCmd.Flags().BoolP("quiet", "q", false, "suppress execution headers and command echoing")
 	}
 }
 
@@ -392,6 +421,5 @@ func LoadScript(scripts embed.FS, cmd *cobra.Command, filename string) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("LoadScript failed to read file: %w", err)
 	}
-	cmd.Printf("LoadScript content: %d\n", len(content))
 	return ReadLines(strings.NewReader(string(content)))
 }

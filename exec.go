@@ -26,7 +26,7 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 
 				cmdLine := strings.Fields(args[0])
 				if len(cmdLine) == 0 {
-					cmd.Printf("No command provided\n")
+					cmd.Printf("%s\n", cli.ErrorString("No command provided"))
 					return
 				}
 
@@ -51,14 +51,14 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 					}
 
 					if err := osCmd.Start(); err != nil {
-						cmd.Printf("Error starting command in background: %v\n", err)
+						cmd.Printf("%s\n", cli.ErrorString("Error starting command in background: %v", err))
 						cancel()
 						return
 					}
 
 					// Add to job manager
 					jobID := cli.JobManager.Add(args[0], ctx, cancel, osCmd)
-					cmd.Printf("Command started in background with PID %d (Job ID: %d)\n", osCmd.Process.Pid, jobID)
+					cmd.Printf("%s\n", cli.SuccessString("Command started in background with PID %d (Job ID: %d)", osCmd.Process.Pid, jobID))
 
 					// Update the job's output buffer reference
 					if job, ok := cli.JobManager.Get(jobID); ok {
@@ -77,7 +77,7 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 					}
 
 					if err := osCmd.Run(); err != nil {
-						cmd.Printf("Error executing command: %v\n", err)
+						cmd.Printf("%s\n", cli.ErrorString("Error executing command: %v", err))
 					}
 				}
 			},

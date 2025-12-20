@@ -81,7 +81,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 				alias := args[0]
 				value, ok := cli.aliases.Get(alias)
 				if !ok {
-					cmd.Printf(cli.ErrorString("alias `%s` not found\n", alias))
+					cmd.Print(cli.ErrorString("alias `%s` not found\n", alias))
 					return
 				}
 				cmd.Printf("%s=%s\n", alias, value)
@@ -148,7 +148,7 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 			Run: func(cmd *cobra.Command, args []string) {
 				homeDir, err := os.UserHomeDir()
 				if err != nil {
-					cmd.Printf(cli.ErrorString("unable to get home directory: %v\n", err))
+					cmd.Print(cli.ErrorString("unable to get home directory: %v\n", err))
 					return
 				}
 				aliasesFilePath := filepath.Join(homeDir, fmt.Sprintf(".%s.aliases", cli.AppName))
@@ -174,7 +174,7 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 	// Get the user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf(c.ErrorString("unable to get home directory, %v\n", err))
+		fmt.Print(c.ErrorString("unable to get home directory, %v\n", err))
 		return
 	}
 
@@ -185,7 +185,7 @@ func (c *CLI) LoadAliases(cmd *cobra.Command) {
 	// Open the .aliases file
 	file, err := os.Open(aliasesFilePath)
 	if err != nil {
-		fmt.Printf(c.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
+		fmt.Print(c.ErrorString("error opening alias file `%s`, %v\n", aliasesFilePath, err))
 		c.AddDefaultAliases(cmd)
 		return
 	}
@@ -269,13 +269,13 @@ func (c *CLI) SaveAliases(cmd *cobra.Command) error {
 	c.aliases.ForEach(func(name string, value string) bool {
 		_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", name, value))
 		if err != nil {
-			cmd.Printf(c.ErrorString("error writing to `%s`, %v", name, err))
+			cmd.Print(c.ErrorString("error writing to `%s`, %v", name, err))
 			return true
 		}
 		return false
 	})
 
-	cmd.Printf(c.InfoString("aliases saved to `%s`\n", filePath))
+	cmd.Print(c.InfoString("aliases saved to `%s`\n", filePath))
 
 	// Flush the buffered writer to ensure all data is written
 	err = writer.Flush()

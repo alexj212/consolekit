@@ -32,6 +32,7 @@ type CLI struct {
 	InfoString      func(format string, a ...any) string
 	ErrorString     func(format string, a ...any) string
 	SuccessString   func(format string, a ...any) string
+	WarningString   func(format string, a ...any) string
 	Scripts         embed.FS
 	Defaults        *safemap.SafeMap[string, string]
 	TokenReplacers  []func(string) (string, bool)
@@ -81,9 +82,10 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 
 	cli := &CLI{
 		AppName:         AppName,
-		InfoString:      color.New(color.FgWhite).SprintfFunc(),
+		InfoString:      color.New(color.FgCyan).SprintfFunc(),
 		ErrorString:     color.New(color.FgRed).SprintfFunc(),
 		SuccessString:   color.New(color.FgGreen).SprintfFunc(),
+		WarningString:   color.New(color.FgYellow).SprintfFunc(),
 		Defaults:        safemap.New[string, string](),
 		aliases:         safemap.New[string, string](),                // Per-instance aliases
 		JobManager:      NewJobManager(),                              // Initialize job manager
@@ -112,6 +114,7 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		cli.InfoString = fmt.Sprintf
 		cli.ErrorString = fmt.Sprintf
 		cli.SuccessString = fmt.Sprintf
+		cli.WarningString = fmt.Sprintf
 		color.NoColor = true
 	}
 
@@ -559,6 +562,9 @@ func (c *CLI) RunBatch() error {
 			continue
 		}
 
+		// Show the command being executed
+		fmt.Printf("%s\n", c.InfoString("→ %s", line))
+
 		output, err := c.ExecuteLine(line, nil)
 		if output != "" {
 			fmt.Print(output)
@@ -569,7 +575,7 @@ func (c *CLI) RunBatch() error {
 
 		if err != nil {
 			errorCount++
-			fmt.Fprintf(os.Stderr, "Error at line %d: %v\n", lineNum, err)
+			fmt.Fprintf(os.Stderr, "%s\n", c.ErrorString("✗ Error at line %d: %v", lineNum, err))
 			// Continue on error to run all test commands
 		} else {
 			successCount++
@@ -692,7 +698,7 @@ func (c *CLI) Exit(caller string, code int) {
 // Execute starts the CLI (alternative entry point for compatibility)
 func (c *CLI) Execute() {
 	if err := c.AppBlock(); err != nil {
-		fmt.Printf(c.ErrorString("error executing CLI: %v\n", err))
+		fmt.Print(c.ErrorString("error executing CLI: %v\n", err))
 		os.Exit(1)
 	}
 }
