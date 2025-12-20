@@ -2,6 +2,8 @@ package consolekit
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -137,6 +139,33 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 			},
 		}
 		rootCmd.AddCommand(dotCmd)
+
+		// edit command - open file in default editor
+		editCmd := &cobra.Command{
+			Use:   "edit [file]",
+			Short: "Open file in $EDITOR",
+			Long:  `Open a file in the default editor specified by $EDITOR environment variable (defaults to vi)`,
+			Args:  cobra.ExactArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				filePath := args[0]
+
+				editor := os.Getenv("EDITOR")
+				if editor == "" {
+					editor = "vi"
+				}
+
+				editCmd := exec.Command(editor, filePath)
+				editCmd.Stdin = os.Stdin
+				editCmd.Stdout = os.Stdout
+				editCmd.Stderr = os.Stderr
+
+				if err := editCmd.Run(); err != nil {
+					cmd.PrintErrf("Error opening editor: %v\n", err)
+					return
+				}
+			},
+		}
+		rootCmd.AddCommand(editCmd)
 	}
 }
 
