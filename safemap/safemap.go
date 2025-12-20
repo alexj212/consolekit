@@ -75,8 +75,8 @@ func (s *SafeMap[K, V]) ForEach(f func(K, V) bool) {
 }
 
 func (s *SafeMap[K, V]) Remove(f func(K, V) bool) map[K]V {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	r := make(map[K]V)
 	for key, val := range s.data {
@@ -121,12 +121,16 @@ func (s *SafeMap[K, V]) Random() (int, V) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	keys := s.Keys()
-
-	if len(keys) == 0 {
+	if len(s.data) == 0 {
 		var zeroV V
 		return 0, zeroV
 	}
+
+	keys := make([]K, 0, len(s.data))
+	for k := range s.data {
+		keys = append(keys, k)
+	}
+
 	idx := rand.Intn(len(keys))
 	return idx, s.data[keys[idx]]
 }

@@ -32,6 +32,7 @@ type Job struct {
 	Cancel    context.CancelFunc
 	cmd       *exec.Cmd
 	mu        sync.RWMutex
+	done      chan struct{}
 }
 
 // JobManager manages background jobs and scheduled tasks
@@ -65,6 +66,7 @@ func (jm *JobManager) Add(command string, ctx context.Context, cancel context.Ca
 		Output:    &bytes.Buffer{},
 		Cancel:    cancel,
 		cmd:       cmd,
+		done:      make(chan struct{}),
 	}
 
 	jm.jobs[jm.nextID] = job
@@ -76,8 +78,6 @@ func (jm *JobManager) Add(command string, ctx context.Context, cancel context.Ca
 		err := cmd.Wait()
 
 		j.mu.Lock()
-		defer j.mu.Unlock()
-
 		now := time.Now()
 		j.EndTime = &now
 
@@ -91,6 +91,9 @@ func (jm *JobManager) Add(command string, ctx context.Context, cancel context.Ca
 		} else {
 			j.Status = JobCompleted
 		}
+		j.mu.Unlock()
+
+		close(j.done)
 	}(job)
 
 	// Set PID after process starts (if available)
@@ -183,21 +186,12 @@ func (jm *JobManager) Wait(id int) error {
 		return fmt.Errorf("job %d not found", id)
 	}
 
-	// Poll until job is no longer running
-	for {
-		job.mu.RLock()
-		status := job.Status
-		job.mu.RUnlock()
+	<-job.done
 
-		if status != JobRunning {
-			job.mu.RLock()
-			err := job.Error
-			job.mu.RUnlock()
-			return err
-		}
-
-		time.Sleep(100 * time.Millisecond)
-	}
+	job.mu.RLock()
+	err := job.Error
+	job.mu.RUnlock()
+	return err
 }
 
 // Logs returns the output for a job

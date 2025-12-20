@@ -1,6 +1,7 @@
 package consolekit
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -10,6 +11,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/alexj212/consolekit/parser"
@@ -45,9 +47,9 @@ type CLI struct {
 	historyFile string
 	promptFunc  func() string // Store prompt function for dynamic updates
 
-	// recursion protection
-	execDepth    int
-	maxExecDepth int
+	// recursion protection (thread-safe)
+	execDepth    atomic.Int32
+	maxExecDepth int32
 }
 
 func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
@@ -270,11 +272,11 @@ func (c *CLI) ExecuteLineWithContext(ctx context.Context, line string, defs *saf
 	// Track command execution time for logging
 	startTime := time.Now()
 
-	// Track recursion depth to prevent infinite loops
-	c.execDepth++
-	defer func() { c.execDepth-- }()
+	// Track recursion depth to prevent infinite loops (thread-safe)
+	depth := c.execDepth.Add(1)
+	defer c.execDepth.Add(-1)
 
-	if c.execDepth > c.maxExecDepth {
+	if depth > c.maxExecDepth {
 		return "", fmt.Errorf("maximum execution depth exceeded (%d) - possible infinite recursion", c.maxExecDepth)
 	}
 
@@ -291,7 +293,7 @@ func (c *CLI) ExecuteLineWithContext(ctx context.Context, line string, defs *saf
 	outputFile, commands, err := parser.ParseCommands(line)
 	if err != nil {
 		// Log failed command
-		if c.LogManager.IsEnabled() && c.execDepth == 1 {
+		if c.LogManager.IsEnabled() && depth == 1 {
 			_ = c.LogManager.Log(AuditLog{
 				Timestamp: startTime,
 				User:      c.getCurrentUser(),
@@ -307,7 +309,7 @@ func (c *CLI) ExecuteLineWithContext(ctx context.Context, line string, defs *saf
 	output, err := c.executeCommandsWithContext(ctx, rootCmd, commands)
 
 	// Log command execution (only log top-level commands, not recursive calls)
-	if c.LogManager.IsEnabled() && c.execDepth == 1 {
+	if c.LogManager.IsEnabled() && depth == 1 {
 		logEntry := AuditLog{
 			Timestamp: startTime,
 			User:      c.getCurrentUser(),
@@ -484,7 +486,13 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 
 // Run executes command-line arguments if present, otherwise starts the REPL
 // This is the recommended entry point for CLI applications
+// Detects if stdin is piped and runs in batch mode automatically
 func (c *CLI) Run() error {
+	// Check if stdin is being piped (not a TTY) - enables script piping
+	if !isatty.IsTerminal(os.Stdin.Fd()) {
+		return c.RunBatch()
+	}
+
 	// Check if we have command-line arguments
 	if len(os.Args) > 1 {
 		// Check if we have an actual command or just flags
@@ -532,6 +540,52 @@ func (c *CLI) ExecuteArgs(args []string) error {
 	rootCmd := c.BuildRootCmd()()
 	rootCmd.SetArgs(args)
 	return rootCmd.Execute()
+}
+
+// RunBatch reads commands from stdin and executes them line by line
+// This enables piping scripts for automated testing: cat script.run | ./app
+func (c *CLI) RunBatch() error {
+	scanner := bufio.NewScanner(os.Stdin)
+	lineNum := 0
+	successCount := 0
+	errorCount := 0
+
+	for scanner.Scan() {
+		lineNum++
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		output, err := c.ExecuteLine(line, nil)
+		if output != "" {
+			fmt.Print(output)
+			if !strings.HasSuffix(output, "\n") {
+				fmt.Println()
+			}
+		}
+
+		if err != nil {
+			errorCount++
+			fmt.Fprintf(os.Stderr, "Error at line %d: %v\n", lineNum, err)
+			// Continue on error to run all test commands
+		} else {
+			successCount++
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading stdin: %w", err)
+	}
+
+	// Return error if any commands failed (for exit code)
+	if errorCount > 0 {
+		return fmt.Errorf("batch completed: %d succeeded, %d failed", successCount, errorCount)
+	}
+
+	return nil
 }
 
 // AppBlock starts the REPL loop (maintains API compatibility)

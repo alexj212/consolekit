@@ -7,14 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 )
 
 // TemplateManager manages script templates
 type TemplateManager struct {
-	templates map[string]*template.Template
-	embeddedFS embed.FS
+	templates    map[string]*template.Template
+	embeddedFS   embed.FS
 	templatesDir string
+	mu           sync.RWMutex
 }
 
 // NewTemplateManager creates a new template manager
@@ -28,8 +30,11 @@ func NewTemplateManager(templatesDir string, embeddedFS embed.FS) *TemplateManag
 
 // LoadTemplate loads a template from file or embedded FS
 func (tm *TemplateManager) LoadTemplate(name string) (*template.Template, error) {
-	// Check if already loaded
-	if tmpl, exists := tm.templates[name]; exists {
+	// Check if already loaded (with read lock)
+	tm.mu.RLock()
+	tmpl, exists := tm.templates[name]
+	tm.mu.RUnlock()
+	if exists {
 		return tmpl, nil
 	}
 
@@ -40,7 +45,9 @@ func (tm *TemplateManager) LoadTemplate(name string) (*template.Template, error)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse embedded template %s: %w", name, err)
 		}
+		tm.mu.Lock()
 		tm.templates[name] = tmpl
+		tm.mu.Unlock()
 		return tmpl, nil
 	}
 
@@ -56,7 +63,9 @@ func (tm *TemplateManager) LoadTemplate(name string) (*template.Template, error)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template %s: %w", name, err)
 		}
+		tm.mu.Lock()
 		tm.templates[name] = tmpl
+		tm.mu.Unlock()
 		return tmpl, nil
 	}
 

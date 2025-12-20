@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ type ScheduledTask struct {
 	timer    *time.Timer
 	ticker   *time.Ticker
 	done     chan bool
+	mu       sync.RWMutex
 }
 
 // AddScheduleCommands adds command scheduling commands
@@ -210,8 +212,13 @@ Examples:
 					for {
 						select {
 						case <-task.ticker.C:
-							if task.Enabled {
-								output, err := cli.ExecuteLine(task.Command, nil)
+							task.mu.RLock()
+							enabled := task.Enabled
+							command := task.Command
+							task.mu.RUnlock()
+
+							if enabled {
+								output, err := cli.ExecuteLine(command, nil)
 								if output != "" {
 									fmt.Print(output)
 									if !strings.HasSuffix(output, "\n") {
@@ -248,15 +255,24 @@ Examples:
 
 				cmd.Println("Scheduled Tasks:")
 				for _, task := range tasks {
+					task.mu.RLock()
+					enabled := task.Enabled
+					repeat := task.Repeat
+					interval := task.Interval
+					command := task.Command
+					taskTime := task.Time
+					taskID := task.ID
+					task.mu.RUnlock()
+
 					status := "enabled"
-					if !task.Enabled {
+					if !enabled {
 						status = "disabled"
 					}
 
-					if task.Repeat {
-						cmd.Printf("[%d] Every %s - %s (%s)\n", task.ID, task.Interval, task.Command, status)
+					if repeat {
+						cmd.Printf("[%d] Every %s - %s (%s)\n", taskID, interval, command, status)
 					} else {
-						cmd.Printf("[%d] At %s - %s (%s)\n", task.ID, task.Time.Format("15:04:05"), task.Command, status)
+						cmd.Printf("[%d] At %s - %s (%s)\n", taskID, taskTime.Format("15:04:05"), command, status)
 					}
 				}
 			},
@@ -280,12 +296,14 @@ Examples:
 					return
 				}
 
-				// Stop timer/ticker
+				// Stop timer/ticker and close done channel to signal goroutine exit
 				if task.timer != nil {
 					task.timer.Stop()
 				}
 				if task.ticker != nil {
 					task.ticker.Stop()
+				}
+				if task.done != nil {
 					close(task.done)
 				}
 
@@ -318,7 +336,9 @@ Examples:
 					return
 				}
 
+				task.mu.Lock()
 				task.Enabled = false
+				task.mu.Unlock()
 				cmd.Println(cli.SuccessString(fmt.Sprintf("Paused task %d", id)))
 			},
 		}
@@ -346,7 +366,9 @@ Examples:
 					return
 				}
 
+				task.mu.Lock()
 				task.Enabled = true
+				task.mu.Unlock()
 				cmd.Println(cli.SuccessString(fmt.Sprintf("Resumed task %d", id)))
 			},
 		}
