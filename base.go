@@ -108,9 +108,11 @@ func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
 		httpCmd.Flags().BoolP("show-details", "", false, "show details")
 
 		var sleepCmd = &cobra.Command{
-			Use:     "sleep {secs}",
-			Short:   "sleep {n} seconds",
-			Example: "sleep 5",
+			Use:     "sleep [--quiet] {secs}",
+			Short:   "sleep {n} seconds with optional progress updates",
+			Long:    "Sleep for specified seconds. Shows progress for sleeps >= 5 seconds unless --quiet is specified.",
+			Example: "sleep 5\nsleep 60\nsleep --quiet 30",
+			Args:    cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
 
 				delay, err := strconv.Atoi(args[0])
@@ -118,10 +120,59 @@ func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
 					cmd.Printf("Invalid delay %s\n", args[0])
 					return
 				}
-				cmd.Printf("Sleeping for %d seconds\n", delay)
-				time.Sleep(time.Duration(delay) * time.Second)
+				
+				quiet, _ := cmd.Flags().GetBool("quiet")
+				
+				// For short sleeps (< 5 seconds) or quiet mode, just sleep without updates
+				if delay < 5 || quiet {
+					if !quiet {
+						cmd.Printf("Sleeping for %d seconds\n", delay)
+					}
+					time.Sleep(time.Duration(delay) * time.Second)
+					return
+				}
+				
+				// For longer sleeps, show progress updates
+				startTime := time.Now()
+				endTime := startTime.Add(time.Duration(delay) * time.Second)
+				cmd.Printf("%s\n", cli.InfoString("⏱  Sleeping for %d seconds (until %s)", delay, endTime.Format("15:04:05")))
+				
+				// Determine update interval based on total duration
+				updateInterval := time.Second
+				if delay >= 300 {
+					updateInterval = 30 * time.Second // Every 30 seconds for sleeps >= 5 minutes
+				} else if delay >= 60 {
+					updateInterval = 10 * time.Second // Every 10 seconds for sleeps >= 1 minute
+				} else if delay >= 30 {
+					updateInterval = 5 * time.Second  // Every 5 seconds for sleeps >= 30 seconds
+				} else {
+					updateInterval = 2 * time.Second  // Every 2 seconds for sleeps >= 5 seconds
+				}
+				
+				ticker := time.NewTicker(updateInterval)
+				defer ticker.Stop()
+				
+				done := time.After(time.Duration(delay) * time.Second)
+				
+				for {
+					select {
+					case <-done:
+						elapsed := time.Since(startTime)
+						cmd.Printf("%s\n", cli.SuccessString("✓ Sleep completed - waited %s", HumanizeDuration(elapsed, false)))
+						return
+					case <-ticker.C:
+						elapsed := time.Since(startTime)
+						remaining := time.Until(endTime)
+						percentage := int((float64(elapsed) / float64(delay*int(time.Second))) * 100)
+						cmd.Printf("%s\n", cli.InfoString("  ⏳ Progress: %s elapsed, %s remaining (%d%%)", 
+							HumanizeDuration(elapsed, false),
+							HumanizeDuration(remaining, false),
+							percentage))
+					}
+				}
 			},
 		} //sleepCmd
+		sleepCmd.Flags().BoolP("quiet", "q", false, "suppress progress updates")
 
 		// waitCmd pauses execution until a specified time
 		var waitCmd = &cobra.Command{

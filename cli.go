@@ -525,7 +525,9 @@ func (c *CLI) hasNonFlagArgs() bool {
 				    arg == "-d" || arg == "--saveDir" ||
 				    arg == "-s" || arg == "--save" ||
 				    arg == "-o" || arg == "--output" ||
-				    arg == "-f" || arg == "--file") {
+				    arg == "-f" || arg == "--file" ||
+				    arg == "-S" || arg == "--saveDir" ||
+				    arg == "--profile-port") {
 					i++ // Skip the next arg (flag value)
 				}
 			}
