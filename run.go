@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -82,7 +83,32 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 				return
 			}
 
-			// List regular filesystem files
+			// Check if path exists and whether it's a file or directory
+			fileInfo, err := os.Stat(dir)
+			if err != nil {
+				cmd.Printf("Error accessing path: %v\n", err)
+				return
+			}
+
+			// If it's a file, just show info about that file
+			if !fileInfo.IsDir() {
+				absPath, err := filepath.Abs(dir)
+				if err != nil {
+					absPath = dir
+				}
+
+				cmd.Printf("%s\n", cli.InfoString("File information: %s", absPath))
+				cmd.Printf("%s\n", strings.Repeat("-", 80))
+				cmd.Printf("%s  %10d bytes  %-19s  %s\n",
+					"[FILE]",
+					fileInfo.Size(),
+					fileInfo.ModTime().Format("2006-01-02 15:04:05"),
+					absPath)
+				cmd.Printf("%s\n", strings.Repeat("-", 80))
+				return
+			}
+
+			// List regular filesystem directory contents
 			cmd.Printf("%s\n", cli.InfoString("Listing files in: %s", dir))
 			files, err := ListFiles(dir, "")
 			if err != nil {
@@ -118,17 +144,22 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 		} // lsCmdFunc
 
 		var lsCmd = &cobra.Command{
-			Use:     "ls [dir | @[path]]",
+			Use:     "ls [path | @[path]]",
 			Aliases: []string{"list", "l"},
-			Short:   "List files and directories with full paths",
+			Short:   "List directory contents or show file information",
 			Long: `List files and directories in the filesystem or embedded files.
 
 When no argument is provided, lists the current directory.
+When a directory is provided, lists its contents.
+When a file is provided, shows information about that specific file.
 Use '@' prefix to list embedded files from the scripts filesystem.
 Directories are displayed with a '/' suffix and shown before files.
 Full paths are displayed for all entries.`,
 			Example: `  # List current directory
   ls
+
+  # Show info about a specific file
+  ls myfile.txt
 
   # List embedded scripts
   ls @
