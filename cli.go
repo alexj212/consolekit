@@ -491,6 +491,12 @@ func (c *CLI) BuildRootCmd() func() *cobra.Command {
 // This is the recommended entry point for CLI applications
 // Detects if stdin is piped and runs in batch mode automatically
 func (c *CLI) Run() error {
+	// Check if this is an MCP server command - if so, execute it directly
+	// regardless of stdin status (MCP needs to read JSON-RPC from stdin)
+	if c.isMCPCommand() {
+		return c.ExecuteArgs(os.Args[1:])
+	}
+
 	// Check if stdin is being piped (not a TTY) - enables script piping
 	if !isatty.IsTerminal(os.Stdin.Fd()) {
 		return c.RunBatch()
@@ -508,6 +514,35 @@ func (c *CLI) Run() error {
 
 	// No arguments or only flags, start REPL
 	return c.AppBlock()
+}
+
+// isMCPCommand checks if the command being run is the MCP server
+// MCP server needs special handling because it reads JSON-RPC from stdin
+func (c *CLI) isMCPCommand() bool {
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			// Skip flag and its value if it's a flag that takes a value
+			if !strings.Contains(arg, "=") {
+				// Common flags that take values - skip the next arg
+				if i+1 < len(os.Args) &&
+				   (arg == "-c" || arg == "--config" ||
+				    arg == "-d" || arg == "--saveDir" ||
+				    arg == "-s" || arg == "--save" ||
+				    arg == "-o" || arg == "--output" ||
+				    arg == "-f" || arg == "--file" ||
+				    arg == "-S" || arg == "--saveDir" ||
+				    arg == "--profile-port") {
+					i++ // Skip the next arg (flag value)
+				}
+			}
+			continue
+		}
+		// First non-flag argument is the command
+		return arg == "mcp"
+	}
+	return false
 }
 
 // hasNonFlagArgs checks if command-line arguments contain an actual command (non-flag argument)
