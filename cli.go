@@ -636,6 +636,18 @@ func (c *CLI) AppBlock() error {
 	// Create a new console application
 	c.app = console.New(c.AppName)
 
+	// Ensure there's a newline before the first prompt
+	// This helps with display issues after heavy initialization
+	c.app.NewlineBefore = true
+
+	// Add a pre-readline hook to ensure terminal is in clean state
+	c.app.PreReadlineHooks = append(c.app.PreReadlineHooks, func() error {
+		// Sync stdout/stderr to ensure all buffered output is flushed
+		os.Stdout.Sync()
+		os.Stderr.Sync()
+		return nil
+	})
+
 	// Disable automatic quote/bracket pairing in readline
 	shell := c.app.Shell()
 	shell.Config.Set("autopairs", false)
