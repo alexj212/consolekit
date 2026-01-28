@@ -85,8 +85,6 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 					return
 				}
 				cmd.Printf("%s=%s\n", alias, value)
-				return
-
 			},
 		}
 
@@ -135,8 +133,6 @@ func AddAlias(cli *CLI) func(cmd *cobra.Command) {
 					cmd.Printf("%s=%s\n", k, v)
 					return false
 				})
-				return
-
 			},
 		}
 

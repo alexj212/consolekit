@@ -47,10 +47,14 @@ go test ./...
    - **Per-instance aliases** stored in CLI.aliases SafeMap (not global)
    - Token replacers and defaults initialization
    - **Recursion protection** with execDepth counter (maxExecDepth = 10)
+   - **Console creation** (eager initialization) - console.Console is created immediately
+   - **Console configuration** - menus, history, prompts, and hooks are set up
+   - **Pre-command hooks** for token replacement and alias expansion
 
 2. **Command Registration** (`AddCommands` in cli.go): Uses customizer functions to add modular commands
    - Each module (alias, exec, history, run, base, misc) provides a function that accepts `*cobra.Command`
    - Commands are registered during CLI initialization via `rootInit` callbacks
+   - Commands are added to console menu after customizer completes
 
 3. **Command Execution** (`ExecuteLine` in cli.go):
    - **Increments recursion depth** and checks against maxExecDepth to prevent infinite loops
@@ -65,7 +69,10 @@ The REPL is powered by `reeflective/console` which provides:
 - **Pre-command hooks** for token replacement and alias expansion before execution
 - **Post-command hooks** for history management
 - **History Management**: File-based history with proper loading/saving
-- **AppBlock** (cli.go): Creates and configures the console application with menu setup
+- **Console creation** happens in `NewCLI()` with eager initialization
+- **AppBlock** (cli.go): Starts the REPL (console is already created and configured)
+- **Console() method**: Always returns a valid `*console.Console` instance (created during NewCLI)
+- **SetPrompt() method**: Can be called anytime after NewCLI() to update the prompt function
 
 ### Token Replacement System
 

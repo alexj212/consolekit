@@ -128,8 +128,91 @@ func NewCLI(AppName string, customizer func(*CLI) error) (*CLI, error) {
 		cli.historyFile = filepath.Join(currentUser.HomeDir, fileName)
 	}
 
+	// Create and configure console immediately (eager initialization)
+	cli.app = console.New(cli.AppName)
+	cli.app.NewlineAfter = true
+	cli.app.NewlineBefore = true
+	cli.app.NewlineWhenEmpty = true
+
+	// Disable automatic quote/bracket pairing in readline
+	shell := cli.app.Shell()
+	shell.Config.Set("autopairs", false)
+
+	// Get the active menu (default menu)
+	menu := cli.app.ActiveMenu()
+
+	// Set commands using our BuildRootCmd function
+	menu.SetCommands(cli.BuildRootCmd())
+
+	// Configure history file if available
+	if cli.historyFile != "" {
+		menu.AddHistorySourceFile("main", cli.historyFile)
+	}
+
+	// Set the prompt using the stored prompt function
+	prompt := menu.Prompt()
+	prompt.Primary = cli.promptFunc
+
+	// Add a pre-command hook to handle token replacement and piping
+	cli.app.PreCmdRunLineHooks = append(cli.app.PreCmdRunLineHooks, func(args []string) ([]string, error) {
+		// Skip empty input
+		if len(args) == 0 {
+			return args, nil
+		}
+
+		// Reconstruct the line
+		line := strings.Join(args, " ")
+
+		// Skip comments
+		if strings.HasPrefix(line, "#") {
+			return nil, nil
+		}
+
+		// Check if we need full custom handling (pipes, redirects, or @ tokens)
+		// These need ExecuteLine which handles both alias/token replacement AND piping/redirection
+		if strings.Contains(line, "|") || strings.Contains(line, ">") || strings.Contains(line, "@") {
+			// Execute through our custom ExecuteLine which handles everything
+			output, err := cli.ExecuteLine(line, nil)
+
+			// Print output
+			if output != "" {
+				fmt.Print(output)
+				if !strings.HasSuffix(output, "\n") {
+					fmt.Println()
+				}
+			}
+
+			if err != nil {
+				fmt.Printf("%s\n", cli.ErrorString("Error: %v", err))
+			}
+
+			// Return the noop command to prevent further execution
+			return []string{"__noop__"}, nil
+		}
+
+		// For simple commands without pipes/redirects, do alias replacement only
+		originalLine := line
+
+		// Check aliases - note: only checks exact match of the whole line
+		cli.aliases.ForEach(func(k string, v string) bool {
+			if k == line {
+				line = v
+				return true
+			}
+			return false
+		})
+
+		// If alias changed the line, re-split and return
+		if line != originalLine {
+			newArgs := strings.Fields(line)
+			return newArgs, nil
+		}
+
+		// No changes, let console handle it normally
+		return args, nil
+	})
 	if customizer != nil {
-		err := customizer(cli)
+		err = customizer(cli)
 		if err != nil {
 			fmt.Printf("customizer error: %v\n", err)
 			return nil, fmt.Errorf("customizer error: %w", err)
@@ -207,7 +290,7 @@ func (c *CLI) ReplaceDefaults(cmd *cobra.Command, defs *safemap.SafeMap[string, 
 			return input
 		}
 	}
-	input = c.replaceToken(cmd, defs, input)
+	input = c.replaceToken(defs, input)
 
 	return input
 }
@@ -230,13 +313,13 @@ func (c *CLI) ReplaceTokens(cmd *cobra.Command, defs *safemap.SafeMap[string, st
 	}
 
 	// Replace built-in tokens (@env:, @exec:, etc.)
-	input = c.replaceToken(cmd, defs, input)
+	input = c.replaceToken(defs, input)
 
 	return input
 }
 
 // replaceToken handles token replacement
-func (c *CLI) replaceToken(cmd *cobra.Command, defs *safemap.SafeMap[string, string], token string) string {
+func (c *CLI) replaceToken(defs *safemap.SafeMap[string, string], token string) string {
 	if strings.HasPrefix(token, "@env:") {
 		envVar := strings.TrimPrefix(token, "@env:")
 		if value, exists := os.LookupEnv(envVar); exists {
@@ -405,11 +488,6 @@ func (c *CLI) writeToFile(filename string, content string) error {
 	return err
 }
 
-// executeCommands executes parsed commands with piping support
-func (c *CLI) executeCommands(rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
-	return c.executeCommandsWithContext(context.Background(), rootCmd, commands)
-}
-
 // executeCommandsWithContext executes parsed commands with context support for cancellation
 func (c *CLI) executeCommandsWithContext(ctx context.Context, rootCmd *cobra.Command, commands []*parser.ExecCmd) (string, error) {
 	var output bytes.Buffer
@@ -527,13 +605,13 @@ func (c *CLI) isMCPCommand() bool {
 			if !strings.Contains(arg, "=") {
 				// Common flags that take values - skip the next arg
 				if i+1 < len(os.Args) &&
-				   (arg == "-c" || arg == "--config" ||
-				    arg == "-d" || arg == "--saveDir" ||
-				    arg == "-s" || arg == "--save" ||
-				    arg == "-o" || arg == "--output" ||
-				    arg == "-f" || arg == "--file" ||
-				    arg == "-S" || arg == "--saveDir" ||
-				    arg == "--profile-port") {
+					(arg == "-c" || arg == "--config" ||
+						arg == "-d" || arg == "--saveDir" ||
+						arg == "-s" || arg == "--save" ||
+						arg == "-o" || arg == "--output" ||
+						arg == "-f" || arg == "--file" ||
+						arg == "-S" ||
+						arg == "--profile-port") {
 					i++ // Skip the next arg (flag value)
 				}
 			}
@@ -556,13 +634,13 @@ func (c *CLI) hasNonFlagArgs() bool {
 			if !strings.Contains(arg, "=") {
 				// Common flags that take values - skip the next arg
 				if i+1 < len(os.Args) &&
-				   (arg == "-c" || arg == "--config" ||
-				    arg == "-d" || arg == "--saveDir" ||
-				    arg == "-s" || arg == "--save" ||
-				    arg == "-o" || arg == "--output" ||
-				    arg == "-f" || arg == "--file" ||
-				    arg == "-S" || arg == "--saveDir" ||
-				    arg == "--profile-port") {
+					(arg == "-c" || arg == "--config" ||
+						arg == "-d" || arg == "--saveDir" ||
+						arg == "-s" || arg == "--save" ||
+						arg == "-o" || arg == "--output" ||
+						arg == "-f" || arg == "--file" ||
+						arg == "-S" ||
+						arg == "--profile-port") {
 					i++ // Skip the next arg (flag value)
 				}
 			}
@@ -631,90 +709,9 @@ func (c *CLI) RunBatch() error {
 	return nil
 }
 
-// AppBlock starts the REPL loop (maintains API compatibility)
+// AppBlock starts the REPL loop
+// Console is already created and configured in NewCLI(), so this just starts it
 func (c *CLI) AppBlock() error {
-	// Create a new console application
-	c.app = console.New(c.AppName)
-
-	// Disable automatic quote/bracket pairing in readline
-	shell := c.app.Shell()
-	shell.Config.Set("autopairs", false)
-
-	// Get the active menu (default menu)
-	menu := c.app.ActiveMenu()
-
-	// Set commands using our BuildRootCmd function
-	menu.SetCommands(c.BuildRootCmd())
-
-	// Configure history file if available
-	if c.historyFile != "" {
-		menu.AddHistorySourceFile("main", c.historyFile)
-	}
-
-	// Set the prompt using the stored prompt function
-	prompt := menu.Prompt()
-	prompt.Primary = c.promptFunc
-
-	// Add a pre-command hook to handle token replacement and piping
-	c.app.PreCmdRunLineHooks = append(c.app.PreCmdRunLineHooks, func(args []string) ([]string, error) {
-		// Skip empty input
-		if len(args) == 0 {
-			return args, nil
-		}
-
-		// Reconstruct the line
-		line := strings.Join(args, " ")
-
-		// Skip comments
-		if strings.HasPrefix(line, "#") {
-			return nil, nil
-		}
-
-		// Check if we need full custom handling (pipes, redirects, or @ tokens)
-		// These need ExecuteLine which handles both alias/token replacement AND piping/redirection
-		if strings.Contains(line, "|") || strings.Contains(line, ">") || strings.Contains(line, "@") {
-			// Execute through our custom ExecuteLine which handles everything
-			output, err := c.ExecuteLine(line, nil)
-
-			// Print output
-			if output != "" {
-				fmt.Print(output)
-				if !strings.HasSuffix(output, "\n") {
-					fmt.Println()
-				}
-			}
-
-			if err != nil {
-				fmt.Printf("%s\n", c.ErrorString("Error: %v", err))
-			}
-
-			// Return the noop command to prevent further execution
-			return []string{"__noop__"}, nil
-		}
-
-		// For simple commands without pipes/redirects, do alias replacement only
-		originalLine := line
-
-		// Check aliases - note: only checks exact match of the whole line
-		c.aliases.ForEach(func(k string, v string) bool {
-			if k == line {
-				line = v
-				return true
-			}
-			return false
-		})
-
-		// If alias changed the line, re-split and return
-		if line != originalLine {
-			newArgs := strings.Fields(line)
-			return newArgs, nil
-		}
-
-		// No changes, let console handle it normally
-		return args, nil
-	})
-
-	// Start the console REPL
 	return c.app.Start()
 }
 
@@ -732,24 +729,16 @@ func (c *CLI) Exit(caller string, code int) {
 	os.Exit(code)
 }
 
-// Execute starts the CLI (alternative entry point for compatibility)
-func (c *CLI) Execute() {
-	if err := c.AppBlock(); err != nil {
-		fmt.Print(c.ErrorString("error executing CLI: %v\n", err))
-		os.Exit(1)
-	}
-}
-
 func (c *CLI) SetPrompt(s func() string) {
 	// Store the prompt function
 	c.promptFunc = s
 
-	// Update the active prompt if the app is already running
-	if c.app != nil {
-		menu := c.app.ActiveMenu()
-		if menu != nil {
-			prompt := menu.Prompt()
-			prompt.Primary = s
-		}
-	}
+	// Update the active prompt immediately (console always exists now)
+	menu := c.app.ActiveMenu()
+	prompt := menu.Prompt()
+	prompt.Primary = s
+}
+
+func (c *CLI) Console() *console.Console {
+	return c.app
 }
