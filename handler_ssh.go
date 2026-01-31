@@ -1,7 +1,6 @@
 package consolekit
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -258,10 +257,14 @@ func (h *SSHHandler) handleSession(session *SSHSession) {
 		h.sessionsMu.Lock()
 		delete(h.sessions, session.id)
 		h.sessionsMu.Unlock()
+		fmt.Printf("[DEBUG] Session %s cleaned up\n", session.id)
 	}()
+
+	fmt.Printf("[DEBUG] handleSession started for %s\n", session.id)
 
 	// Process session requests
 	for req := range session.requests {
+		fmt.Printf("[DEBUG] Received request type: %s\n", req.Type)
 		switch req.Type {
 		case "pty-req":
 			// Parse PTY request
@@ -276,8 +279,10 @@ func (h *SSHHandler) handleSession(session *SSHSession) {
 
 		case "shell":
 			// Interactive shell
+			fmt.Printf("[DEBUG] Shell request received, starting shell\n")
 			req.Reply(true, nil)
 			h.handleShell(session)
+			fmt.Printf("[DEBUG] handleShell returned, exiting handleSession\n")
 			return
 
 		case "exec":
@@ -302,60 +307,112 @@ func (h *SSHHandler) handleSession(session *SSHSession) {
 
 // handleShell runs an interactive shell session.
 func (h *SSHHandler) handleShell(session *SSHSession) {
+	fmt.Printf("[DEBUG] handleShell started for session %s\n", session.id)
+
 	// Write welcome message
 	fmt.Fprintf(session.channel, "Welcome to %s SSH console\n", h.executor.AppName)
 	fmt.Fprintf(session.channel, "User: %s, Session: %s\n\n", session.user, session.id)
 
-	// Create scanner for reading lines
-	scanner := bufio.NewScanner(session.channel)
 	prompt := fmt.Sprintf("%s@%s > ", session.user, h.executor.AppName)
 
 	// Write initial prompt
 	fmt.Fprint(session.channel, prompt)
+	fmt.Printf("[DEBUG] Prompt written, starting interactive loop\n")
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	// Read character-by-character with echo
+	var line []byte
+	buf := make([]byte, 1)
 
-		// Skip empty lines
-		if line == "" {
-			fmt.Fprint(session.channel, prompt)
-			continue
-		}
-
-		// Skip comments
-		if strings.HasPrefix(line, "#") {
-			fmt.Fprint(session.channel, prompt)
-			continue
-		}
-
-		// Handle exit command
-		if line == "exit" || line == "quit" {
-			fmt.Fprintln(session.channel, "Goodbye!")
+	for {
+		// Read one byte at a time
+		n, err := session.channel.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Printf("[DEBUG] Read error: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] EOF received\n")
+			}
 			return
 		}
 
-		// Execute command
-		output, err := h.executeCommand(session, line)
+		if n == 0 {
+			continue
+		}
 
-		// Write output
-		if output != "" {
-			fmt.Fprint(session.channel, output)
-			if !strings.HasSuffix(output, "\n") {
-				fmt.Fprintln(session.channel)
+		b := buf[0]
+
+		switch b {
+		case '\r', '\n':
+			// Enter pressed - execute command
+			fmt.Fprint(session.channel, "\r\n")
+
+			cmdLine := strings.TrimSpace(string(line))
+			line = line[:0] // Clear buffer
+
+			// Skip empty lines
+			if cmdLine == "" {
+				fmt.Fprint(session.channel, prompt)
+				continue
+			}
+
+			// Skip comments
+			if strings.HasPrefix(cmdLine, "#") {
+				fmt.Fprint(session.channel, prompt)
+				continue
+			}
+
+			// Handle exit command
+			if cmdLine == "exit" || cmdLine == "quit" {
+				fmt.Fprintln(session.channel, "Goodbye!")
+				return
+			}
+
+			fmt.Printf("[DEBUG] Executing: %s\n", cmdLine)
+
+			// Execute command
+			output, err := h.executeCommand(session, cmdLine)
+
+			// Write output
+			if output != "" {
+				fmt.Fprint(session.channel, output)
+				if !strings.HasSuffix(output, "\n") {
+					fmt.Fprintln(session.channel)
+				}
+			}
+
+			// Write error
+			if err != nil {
+				fmt.Fprintf(session.channel, "Error: %v\n", err)
+			}
+
+			// Write next prompt
+			fmt.Fprint(session.channel, prompt)
+
+		case 127, 8: // Backspace or DEL
+			if len(line) > 0 {
+				line = line[:len(line)-1]
+				// Erase character: backspace, space, backspace
+				fmt.Fprint(session.channel, "\b \b")
+			}
+
+		case 3: // Ctrl+C
+			fmt.Fprint(session.channel, "^C\r\n")
+			line = line[:0]
+			fmt.Fprint(session.channel, prompt)
+
+		case 4: // Ctrl+D (EOF)
+			if len(line) == 0 {
+				fmt.Fprintln(session.channel, "\nGoodbye!")
+				return
+			}
+
+		default:
+			// Echo character back and add to buffer
+			if b >= 32 && b < 127 {
+				session.channel.Write([]byte{b})
+				line = append(line, b)
 			}
 		}
-
-		// Write error
-		if err != nil {
-			fmt.Fprintf(session.channel, "Error: %v\n", err)
-		}
-
-		// Write next prompt
-		fmt.Fprint(session.channel, prompt)
-	}
-
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		fmt.Fprintf(session.channel, "Session error: %v\n", err)
 	}
 }
 

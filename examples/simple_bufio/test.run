@@ -1,0 +1,3 @@
+# Simple test script for simple_bufio example
+print "Hello from test script"
+date
