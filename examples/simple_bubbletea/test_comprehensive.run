@@ -1,0 +1,33 @@
+# Comprehensive Test Script for ConsoleKit
+# Usage: cat test_comprehensive.run | ./simple
+
+# Test 1: Basic output
+print === Test 1: Basic Output ===
+print Hello from piped script!
+
+# Test 2: Variables (note: variables can't start with @)
+print === Test 2: Variables ===
+def myvar testvalue
+print Variable set
+
+# Test 3: Environment
+print === Test 3: Environment ===
+env | wc
+
+# Test 4: Aliases
+print === Test 4: Aliases ===
+alias ll "env"
+ll | wc
+
+# Test 5: History
+print === Test 5: History ===
+history show 5
+
+# Test 6: Empty lines and comments (should be skipped)
+
+# This is a comment
+print === Test 6: Comments and empty lines handled ===
+
+# Test 7: Exit (should end script execution)
+print === Test 7: Complete ===
+print All tests completed successfully!

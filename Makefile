@@ -116,9 +116,9 @@ tools: ## install dependent tools for code analysis
 ##
 ####################################################################################################################
 
-all: simple ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
+all: simple simple_bubbletea ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
 
-binaries: simple ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
+binaries: simple simple_bubbletea ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
 
 create_dir:
 	@mkdir -p ./build
@@ -139,6 +139,11 @@ clean: ## clean all binaries in bin dir
 simple: build_info create_dir ## build simple example binary
 	@echo "build simple"
 	CGO_ENABLED=0 go build -o ./build/simple -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/simple
+	@echo ''
+
+simple_bubbletea: build_info create_dir ## build simple_bubbletea example binary
+	@echo "build simple_bubbletea"
+	cd examples/simple_bubbletea && GOWORK=off CGO_ENABLED=0 go build -o ../../build/simple_bubbletea -a -ldflags '$(COMPILE_LDFLAGS)'
 	@echo ''
 
 ssh_server: build_info create_dir ## build ssh_server example binary

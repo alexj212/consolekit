@@ -85,6 +85,11 @@ func NewREPLHandler(executor *CommandExecutor) *REPLHandler {
 	// Create and configure display adapter (default: reeflective/console)
 	handler.display = NewReflectiveAdapter(executor.AppName)
 
+	// Pass executor to adapter if it supports it (e.g., BubbletteaAdapter)
+	if execSetter, ok := handler.display.(interface{ SetExecutor(*CommandExecutor) }); ok {
+		execSetter.SetExecutor(executor)
+	}
+
 	// Configure display settings
 	handler.display.Configure(DefaultDisplayConfig(executor.AppName))
 

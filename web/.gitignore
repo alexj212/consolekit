@@ -1,0 +1,2 @@
+# Keep node_modules for embedding, but ignore lock file
+package-lock.json
