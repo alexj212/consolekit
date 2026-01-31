@@ -200,9 +200,10 @@ func runInteractiveMode(executor *consolekit.CommandExecutor) {
 			fmt.Print(output)
 		}
 
-		// Print error
+		// Print error (convert \n to \r\n for raw mode)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\r\n", err)
+			errMsg := strings.ReplaceAll(fmt.Sprintf("Error: %v", err), "\n", "\r\n")
+			fmt.Fprint(os.Stderr, errMsg+"\r\n")
 		}
 	}
 }

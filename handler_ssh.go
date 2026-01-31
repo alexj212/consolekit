@@ -305,13 +305,23 @@ func (h *SSHHandler) handleSession(session *SSHSession) {
 	}
 }
 
+// sessionWrite writes text to the SSH session channel, converting \n to \r\n
+// when a PTY is allocated (raw terminal mode requires explicit carriage returns).
+func (h *SSHHandler) sessionWrite(session *SSHSession, s string) {
+	if session.pty != nil {
+		s = strings.ReplaceAll(s, "\r\n", "\n")
+		s = strings.ReplaceAll(s, "\n", "\r\n")
+	}
+	fmt.Fprint(session.channel, s)
+}
+
 // handleShell runs an interactive shell session.
 func (h *SSHHandler) handleShell(session *SSHSession) {
 	fmt.Printf("[DEBUG] handleShell started for session %s\n", session.id)
 
 	// Write welcome message
-	fmt.Fprintf(session.channel, "Welcome to %s SSH console\n", h.executor.AppName)
-	fmt.Fprintf(session.channel, "User: %s, Session: %s\n\n", session.user, session.id)
+	h.sessionWrite(session, fmt.Sprintf("Welcome to %s SSH console\n", h.executor.AppName))
+	h.sessionWrite(session, fmt.Sprintf("User: %s, Session: %s\n\n", session.user, session.id))
 
 	prompt := fmt.Sprintf("%s@%s > ", session.user, h.executor.AppName)
 
@@ -363,7 +373,7 @@ func (h *SSHHandler) handleShell(session *SSHSession) {
 
 			// Handle exit command
 			if cmdLine == "exit" || cmdLine == "quit" {
-				fmt.Fprintln(session.channel, "Goodbye!")
+				h.sessionWrite(session, "Goodbye!\n")
 				return
 			}
 
@@ -374,15 +384,15 @@ func (h *SSHHandler) handleShell(session *SSHSession) {
 
 			// Write output
 			if output != "" {
-				fmt.Fprint(session.channel, output)
+				h.sessionWrite(session, output)
 				if !strings.HasSuffix(output, "\n") {
-					fmt.Fprintln(session.channel)
+					h.sessionWrite(session, "\n")
 				}
 			}
 
 			// Write error
 			if err != nil {
-				fmt.Fprintf(session.channel, "Error: %v\n", err)
+				h.sessionWrite(session, fmt.Sprintf("Error: %v\n", err))
 			}
 
 			// Write next prompt
@@ -402,7 +412,7 @@ func (h *SSHHandler) handleShell(session *SSHSession) {
 
 		case 4: // Ctrl+D (EOF)
 			if len(line) == 0 {
-				fmt.Fprintln(session.channel, "\nGoodbye!")
+				h.sessionWrite(session, "\nGoodbye!\n")
 				return
 			}
 
@@ -422,15 +432,15 @@ func (h *SSHHandler) handleExec(session *SSHSession, cmd string) {
 
 	// Write output
 	if output != "" {
-		fmt.Fprint(session.channel, output)
+		h.sessionWrite(session, output)
 		if !strings.HasSuffix(output, "\n") {
-			fmt.Fprintln(session.channel)
+			h.sessionWrite(session, "\n")
 		}
 	}
 
 	// Write error
 	if err != nil {
-		fmt.Fprintf(session.channel, "Error: %v\n", err)
+		h.sessionWrite(session, fmt.Sprintf("Error: %v\n", err))
 		session.channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{1}))
 		return
 	}
