@@ -2,14 +2,14 @@ package consolekit
 
 import (
 	"os"
-	"os/exec"
+	osexec "os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 // AddConfigCommands adds configuration management commands
-func AddConfigCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddConfigCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		// config command - main configuration command
@@ -34,12 +34,12 @@ Actions:
 			Short: "Get a configuration value",
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
 
-				value, err := cli.Config.GetString(args[0])
+				value, err := exec.Config.GetString(args[0])
 				if err != nil {
 					cmd.PrintErrf("Error: %v\n", err)
 					return
@@ -55,19 +55,19 @@ Actions:
 			Short: "Set a configuration value",
 			Args:  cobra.ExactArgs(2),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
 
-				err := cli.Config.SetString(args[0], args[1])
+				err := exec.Config.SetString(args[0], args[1])
 				if err != nil {
 					cmd.PrintErrf("Error: %v\n", err)
 					return
 				}
 
 				// Save the configuration
-				err = cli.Config.Save()
+				err = exec.Config.Save()
 				if err != nil {
 					cmd.PrintErrf("Error saving config: %v\n", err)
 					return
@@ -82,7 +82,7 @@ Actions:
 			Use:   "edit",
 			Short: "Open config file in $EDITOR",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
@@ -93,13 +93,13 @@ Actions:
 				}
 
 				// Ensure config file exists
-				if err := cli.Config.Save(); err != nil {
+				if err := exec.Config.Save(); err != nil {
 					cmd.PrintErrf("Error creating config file: %v\n", err)
 					return
 				}
 
 				// Open editor
-				editCmd := exec.Command(editor, cli.Config.FilePath())
+				editCmd := osexec.Command(editor, exec.Config.FilePath())
 				editCmd.Stdin = os.Stdin
 				editCmd.Stdout = os.Stdout
 				editCmd.Stderr = os.Stderr
@@ -118,19 +118,19 @@ Actions:
 			Use:   "reload",
 			Short: "Reload configuration from file",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
 
-				err := cli.Config.Load()
+				err := exec.Config.Load()
 				if err != nil {
 					cmd.PrintErrf("Error reloading config: %v\n", err)
 					return
 				}
 
 				// Apply configuration
-				applyConfig(cli)
+				applyConfig(exec)
 
 				cmd.Println("Configuration reloaded")
 			},
@@ -141,7 +141,7 @@ Actions:
 			Use:   "show",
 			Short: "Show all configuration",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
@@ -150,46 +150,46 @@ Actions:
 				cmd.Println(strings.Repeat("=", 60))
 
 				cmd.Println("\n[settings]")
-				cmd.Printf("  history_size = %d\n", cli.Config.Settings.HistorySize)
-				cmd.Printf("  prompt = %q\n", cli.Config.Settings.Prompt)
-				cmd.Printf("  color = %t\n", cli.Config.Settings.Color)
-				cmd.Printf("  pager = %q\n", cli.Config.Settings.Pager)
+				cmd.Printf("  history_size = %d\n", exec.Config.Settings.HistorySize)
+				cmd.Printf("  prompt = %q\n", exec.Config.Settings.Prompt)
+				cmd.Printf("  color = %t\n", exec.Config.Settings.Color)
+				cmd.Printf("  pager = %q\n", exec.Config.Settings.Pager)
 
-				if len(cli.Config.Aliases) > 0 {
+				if len(exec.Config.Aliases) > 0 {
 					cmd.Println("\n[aliases]")
-					for k, v := range cli.Config.Aliases {
+					for k, v := range exec.Config.Aliases {
 						cmd.Printf("  %s = %q\n", k, v)
 					}
 				}
 
-				if len(cli.Config.Variables) > 0 {
+				if len(exec.Config.Variables) > 0 {
 					cmd.Println("\n[variables]")
-					for k, v := range cli.Config.Variables {
+					for k, v := range exec.Config.Variables {
 						cmd.Printf("  %s = %q\n", k, v)
 					}
 				}
 
 				cmd.Println("\n[hooks]")
-				if cli.Config.Hooks.OnStartup != "" {
-					cmd.Printf("  on_startup = %q\n", cli.Config.Hooks.OnStartup)
+				if exec.Config.Hooks.OnStartup != "" {
+					cmd.Printf("  on_startup = %q\n", exec.Config.Hooks.OnStartup)
 				}
-				if cli.Config.Hooks.OnExit != "" {
-					cmd.Printf("  on_exit = %q\n", cli.Config.Hooks.OnExit)
+				if exec.Config.Hooks.OnExit != "" {
+					cmd.Printf("  on_exit = %q\n", exec.Config.Hooks.OnExit)
 				}
-				if cli.Config.Hooks.BeforeCommand != "" {
-					cmd.Printf("  before_command = %q\n", cli.Config.Hooks.BeforeCommand)
+				if exec.Config.Hooks.BeforeCommand != "" {
+					cmd.Printf("  before_command = %q\n", exec.Config.Hooks.BeforeCommand)
 				}
-				if cli.Config.Hooks.AfterCommand != "" {
-					cmd.Printf("  after_command = %q\n", cli.Config.Hooks.AfterCommand)
+				if exec.Config.Hooks.AfterCommand != "" {
+					cmd.Printf("  after_command = %q\n", exec.Config.Hooks.AfterCommand)
 				}
 
 				cmd.Println("\n[logging]")
-				cmd.Printf("  enabled = %t\n", cli.Config.Logging.Enabled)
-				cmd.Printf("  log_file = %q\n", cli.Config.Logging.LogFile)
-				cmd.Printf("  log_success = %t\n", cli.Config.Logging.LogSuccess)
-				cmd.Printf("  log_failures = %t\n", cli.Config.Logging.LogFailures)
-				cmd.Printf("  max_size_mb = %d\n", cli.Config.Logging.MaxSizeMB)
-				cmd.Printf("  retention_days = %d\n", cli.Config.Logging.RetentionDays)
+				cmd.Printf("  enabled = %t\n", exec.Config.Logging.Enabled)
+				cmd.Printf("  log_file = %q\n", exec.Config.Logging.LogFile)
+				cmd.Printf("  log_success = %t\n", exec.Config.Logging.LogSuccess)
+				cmd.Printf("  log_failures = %t\n", exec.Config.Logging.LogFailures)
+				cmd.Printf("  max_size_mb = %d\n", exec.Config.Logging.MaxSizeMB)
+				cmd.Printf("  retention_days = %d\n", exec.Config.Logging.RetentionDays)
 
 				cmd.Println(strings.Repeat("=", 60))
 			},
@@ -200,12 +200,12 @@ Actions:
 			Use:   "path",
 			Short: "Show config file path",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
 
-				cmd.Println(cli.Config.FilePath())
+				cmd.Println(exec.Config.FilePath())
 			},
 		}
 
@@ -214,21 +214,21 @@ Actions:
 			Use:   "save",
 			Short: "Save current configuration to file",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.Config == nil {
+				if exec.Config == nil {
 					cmd.Println("Configuration not initialized")
 					return
 				}
 
 				// Sync current state to config
-				syncStateToConfig(cli)
+				syncStateToConfig(exec)
 
-				err := cli.Config.Save()
+				err := exec.Config.Save()
 				if err != nil {
 					cmd.PrintErrf("Error saving config: %v\n", err)
 					return
 				}
 
-				cmd.Printf("Configuration saved to: %s\n", cli.Config.FilePath())
+				cmd.Printf("Configuration saved to: %s\n", exec.Config.FilePath())
 			},
 		}
 
@@ -245,54 +245,54 @@ Actions:
 }
 
 // applyConfig applies configuration settings to the CLI
-func applyConfig(cli *CLI) {
-	if cli.Config == nil {
+func applyConfig(exec *CommandExecutor) {
+	if exec.Config == nil {
 		return
 	}
 
 	// Apply aliases from config
-	for k, v := range cli.Config.Aliases {
-		cli.aliases.Set(k, v)
+	for k, v := range exec.Config.Aliases {
+		exec.aliases.Set(k, v)
 	}
 
 	// Apply variables from config
-	for k, v := range cli.Config.Variables {
+	for k, v := range exec.Config.Variables {
 		if !strings.HasPrefix(k, "@") {
 			k = "@" + k
 		}
-		cli.Defaults.Set(k, v)
+		exec.Variables.Set(k, v)
 	}
 
 	// Apply color setting
-	if !cli.Config.Settings.Color {
-		cli.NoColor = true
+	if !exec.Config.Settings.Color {
+		exec.NoColor = true
 	}
 
 	// Execute startup hook if configured
-	if cli.Config.Hooks.OnStartup != "" {
-		_, _ = cli.ExecuteLine(cli.Config.Hooks.OnStartup, nil)
+	if exec.Config.Hooks.OnStartup != "" {
+		_, _ = exec.Execute(exec.Config.Hooks.OnStartup, nil)
 	}
 }
 
 // syncStateToConfig syncs current CLI state to config
-func syncStateToConfig(cli *CLI) {
-	if cli.Config == nil {
+func syncStateToConfig(exec *CommandExecutor) {
+	if exec.Config == nil {
 		return
 	}
 
 	// Sync aliases
-	cli.Config.Aliases = make(map[string]string)
-	cli.aliases.ForEach(func(k, v string) bool {
-		cli.Config.Aliases[k] = v
+	exec.Config.Aliases = make(map[string]string)
+	exec.aliases.ForEach(func(k, v string) bool {
+		exec.Config.Aliases[k] = v
 		return false
 	})
 
 	// Sync variables
-	cli.Config.Variables = make(map[string]string)
-	cli.Defaults.ForEach(func(k, v string) bool {
+	exec.Config.Variables = make(map[string]string)
+	exec.Variables.ForEach(func(k, v string) bool {
 		if strings.HasPrefix(k, "@") && !strings.HasPrefix(k, "@arg") && !strings.HasPrefix(k, "@env:") && !strings.HasPrefix(k, "@exec:") {
 			varName := strings.TrimPrefix(k, "@")
-			cli.Config.Variables[varName] = v
+			exec.Config.Variables[varName] = v
 		}
 		return false
 	})

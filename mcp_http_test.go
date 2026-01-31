@@ -10,12 +10,12 @@ import (
 )
 
 func TestMCPHTTPRPCInitialize(t *testing.T) {
-	cli, err := NewCLI("testapp", nil)
+	executor, err := NewCommandExecutor("testapp", nil)
 	if err != nil {
-		t.Fatalf("NewCLI failed: %v", err)
+		t.Fatalf("NewCommandExecutor failed: %v", err)
 	}
 
-	srv := NewMCPHTTPServer(cli, cli.AppName, "9.9.9")
+	srv := NewMCPHTTPServer(executor, executor.AppName, "9.9.9")
 
 	reqBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/mcp", strings.NewReader(reqBody))
@@ -45,8 +45,8 @@ func TestMCPHTTPRPCInitialize(t *testing.T) {
 		t.Fatalf("unmarshal result: %v", err)
 	}
 
-	if initResult.ServerInfo.Name != cli.AppName {
-		t.Fatalf("expected server name %q, got %q", cli.AppName, initResult.ServerInfo.Name)
+	if initResult.ServerInfo.Name != executor.AppName {
+		t.Fatalf("expected server name %q, got %q", executor.AppName, initResult.ServerInfo.Name)
 	}
 	if initResult.ServerInfo.Version != "9.9.9" {
 		t.Fatalf("expected server version %q, got %q", "9.9.9", initResult.ServerInfo.Version)
@@ -54,12 +54,12 @@ func TestMCPHTTPRPCInitialize(t *testing.T) {
 }
 
 func TestMCPHTTPSSEInitialize(t *testing.T) {
-	cli, err := NewCLI("testapp", nil)
+	executor, err := NewCommandExecutor("testapp", nil)
 	if err != nil {
-		t.Fatalf("NewCLI failed: %v", err)
+		t.Fatalf("NewCommandExecutor failed: %v", err)
 	}
 
-	srv := NewMCPHTTPServer(cli, cli.AppName, "1.2.3")
+	srv := NewMCPHTTPServer(executor, executor.AppName, "1.2.3")
 	sessionID := "test-session"
 	msgCh := make(chan []byte, 1)
 	srv.sessionsMu.Lock()

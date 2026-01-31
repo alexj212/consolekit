@@ -12,7 +12,7 @@ import (
 )
 
 // AddDataManipulationCommands adds JSON, CSV, and YAML manipulation commands
-func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddDataManipulationCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// JSON command
 		var jsonCmd = &cobra.Command{
@@ -40,13 +40,13 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := json.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid JSON: %v", err))
 					return
 				}
 
@@ -58,7 +58,7 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to format JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to format JSON: %v", err))
 					return
 				}
 
@@ -91,25 +91,25 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := json.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid JSON: %v", err))
 					return
 				}
 
 				value := getJSONPath(parsed, path)
 				if value == nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Path not found: %s", path)))
+					cmd.PrintErrln(fmt.Sprintf("Path not found: %s", path))
 					return
 				}
 
 				output, err := json.MarshalIndent(value, "", "  ")
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to format output: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to format output: %v", err))
 					return
 				}
 
@@ -134,17 +134,17 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := json.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid JSON: %v", err))
 					return
 				}
 
-				cmd.Println(cli.SuccessString("Valid JSON"))
+				cmd.Println(fmt.Sprintf("Valid JSON"))
 			},
 		}
 
@@ -176,19 +176,19 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid YAML: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid YAML: %v", err))
 					return
 				}
 
 				output, err := yaml.Marshal(parsed)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to format YAML: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to format YAML: %v", err))
 					return
 				}
 
@@ -213,19 +213,19 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid YAML: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid YAML: %v", err))
 					return
 				}
 
 				output, err := json.MarshalIndent(parsed, "", "  ")
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to convert to JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to convert to JSON: %v", err))
 					return
 				}
 
@@ -250,19 +250,19 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to read input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to read input: %v", err))
 					return
 				}
 
 				var parsed interface{}
 				if err := json.Unmarshal(data, &parsed); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid JSON: %v", err))
 					return
 				}
 
 				output, err := yaml.Marshal(parsed)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to convert to YAML: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to convert to YAML: %v", err))
 					return
 				}
 
@@ -295,7 +295,7 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				if len(args) > 0 {
 					file, err = os.Open(args[0])
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to open file: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to open file: %v", err))
 						return
 					}
 					defer file.Close()
@@ -306,19 +306,19 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				reader := csv.NewReader(file)
 				records, err := reader.ReadAll()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to parse CSV: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to parse CSV: %v", err))
 					return
 				}
 
 				if len(records) == 0 {
-					cmd.Println(cli.InfoString("Empty CSV"))
+					cmd.Println(fmt.Sprintf("Empty CSV"))
 					return
 				}
 
 				// Print as table
 				for i, record := range records {
 					if csvHeader && i == 0 {
-						cmd.Println(cli.InfoString(strings.Join(record, " | ")))
+						cmd.Println(strings.Join(record, " | "))
 						cmd.Println(strings.Repeat("-", len(strings.Join(record, " | "))))
 					} else {
 						cmd.Println(strings.Join(record, " | "))
@@ -344,7 +344,7 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				if len(args) > 0 {
 					file, err = os.Open(args[0])
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to open file: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to open file: %v", err))
 						return
 					}
 					defer file.Close()
@@ -355,12 +355,12 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 				reader := csv.NewReader(file)
 				records, err := reader.ReadAll()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to parse CSV: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to parse CSV: %v", err))
 					return
 				}
 
 				if len(records) < 2 {
-					cmd.PrintErrln(cli.ErrorString("CSV must have at least a header and one data row"))
+					cmd.PrintErrln(fmt.Sprintf("CSV must have at least a header and one data row"))
 					return
 				}
 
@@ -379,7 +379,7 @@ func AddDataManipulationCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				output, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to convert to JSON: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to convert to JSON: %v", err))
 					return
 				}
 

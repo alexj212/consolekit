@@ -11,3 +11,7 @@ logs.db
 genrmi2
 *.json
 examples/simple/simple
+examples/multi_transport/multi_transport
+examples/production_server/production_server
+examples/ssh_server/ssh_server
+examples/tailscale_http/tailscale_http

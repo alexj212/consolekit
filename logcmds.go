@@ -10,7 +10,7 @@ import (
 )
 
 // AddLogCommands adds log management commands to the CLI
-func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddLogCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		var logCmd = &cobra.Command{
 			Use:   "log",
@@ -23,8 +23,8 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Use:   "enable",
 			Short: "Enable command logging",
 			Run: func(cmd *cobra.Command, args []string) {
-				cli.LogManager.Enable()
-				cmd.Println(cli.SuccessString("Command logging enabled"))
+				exec.LogManager.Enable()
+				cmd.Println(fmt.Sprintf("Command logging enabled"))
 			},
 		}
 
@@ -33,8 +33,8 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Use:   "disable",
 			Short: "Disable command logging",
 			Run: func(cmd *cobra.Command, args []string) {
-				cli.LogManager.Disable()
-				cmd.Println(cli.InfoString("Command logging disabled"))
+				exec.LogManager.Disable()
+				cmd.Println(fmt.Sprintf("Command logging disabled"))
 			},
 		}
 
@@ -43,13 +43,13 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Use:   "status",
 			Short: "Show logging status",
 			Run: func(cmd *cobra.Command, args []string) {
-				enabled := cli.LogManager.IsEnabled()
-				logFile := cli.LogManager.GetLogFile()
+				enabled := exec.LogManager.IsEnabled()
+				logFile := exec.LogManager.GetLogFile()
 
 				if enabled {
-					cmd.Println(cli.SuccessString("Logging: ENABLED"))
+					cmd.Println(fmt.Sprintf("Logging: ENABLED"))
 				} else {
-					cmd.Println(cli.InfoString("Logging: DISABLED"))
+					cmd.Println(fmt.Sprintf("Logging: DISABLED"))
 				}
 
 				if logFile != "" {
@@ -77,28 +77,28 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				// Apply filters
 				if showFailed {
-					logs = cli.LogManager.GetFailedLogs()
+					logs = exec.LogManager.GetFailedLogs()
 				} else if showSearch != "" {
-					logs = cli.LogManager.SearchLogs(showSearch)
+					logs = exec.LogManager.SearchLogs(showSearch)
 				} else if showSince != "" {
 					since, err := time.Parse(time.RFC3339, showSince)
 					if err != nil {
 						// Try parsing as date only
 						since, err = time.Parse("2006-01-02", showSince)
 						if err != nil {
-							cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid date format: %v", err)))
+							cmd.PrintErrln(fmt.Sprintf("Invalid date format: %v", err))
 							return
 						}
 					}
-					logs = cli.LogManager.GetLogsSince(since)
+					logs = exec.LogManager.GetLogsSince(since)
 				} else if showLast > 0 {
-					logs = cli.LogManager.GetRecentLogs(showLast)
+					logs = exec.LogManager.GetRecentLogs(showLast)
 				} else {
-					logs = cli.LogManager.GetLogs()
+					logs = exec.LogManager.GetLogs()
 				}
 
 				if len(logs) == 0 {
-					cmd.Println(cli.InfoString("No logs found"))
+					cmd.Println(fmt.Sprintf("No logs found"))
 					return
 				}
 
@@ -106,7 +106,7 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 				if showJSON {
 					data, err := json.MarshalIndent(logs, "", "  ")
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to marshal JSON: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to marshal JSON: %v", err))
 						return
 					}
 					cmd.Println(string(data))
@@ -124,12 +124,12 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 						cmd.Printf("%s %s [%s] %s", status, timestamp, duration, log.Command)
 
 						if !log.Success && log.Error != "" {
-							cmd.Printf(" - %s", cli.ErrorString(log.Error))
+							cmd.Printf(" - %s", log.Error)
 						}
 						cmd.Println()
 					}
 
-					cmd.Printf("\n%s\n", cli.InfoString(fmt.Sprintf("Total: %d logs", len(logs))))
+					cmd.Printf("\n%s\n", fmt.Sprintf("Total: %d logs", len(logs)))
 				}
 			},
 			PostRun: func(cmd *cobra.Command, args []string) {
@@ -147,8 +147,8 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Use:   "clear",
 			Short: "Clear all in-memory logs",
 			Run: func(cmd *cobra.Command, args []string) {
-				cli.LogManager.Clear()
-				cmd.Println(cli.SuccessString("Logs cleared"))
+				exec.LogManager.Clear()
+				cmd.Println(fmt.Sprintf("Logs cleared"))
 			},
 		}
 
@@ -159,9 +159,9 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Short: "Export logs to file",
 			Long:  "Export command logs to JSON format",
 			Run: func(cmd *cobra.Command, args []string) {
-				data, err := cli.LogManager.ExportJSON()
+				data, err := exec.LogManager.ExportJSON()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Export failed: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Export failed: %v", err))
 					return
 				}
 
@@ -179,13 +179,13 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 			Short: "Load logs from file",
 			Long:  "Load command logs from the configured log file",
 			Run: func(cmd *cobra.Command, args []string) {
-				if err := cli.LogManager.LoadFromFile(); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to load logs: %v", err)))
+				if err := exec.LogManager.LoadFromFile(); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to load logs: %v", err))
 					return
 				}
 
-				logs := cli.LogManager.GetLogs()
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Loaded %d logs from file", len(logs))))
+				logs := exec.LogManager.GetLogs()
+				cmd.Println(fmt.Sprintf("Loaded %d logs from file", len(logs)))
 			},
 		}
 
@@ -199,14 +199,14 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 				if len(args) == 0 {
 					// Show current config
 					cmd.Println("Logging Configuration:")
-					cmd.Printf("  Enabled: %v\n", cli.LogManager.IsEnabled())
-					cmd.Printf("  Log file: %s\n", cli.LogManager.GetLogFile())
+					cmd.Printf("  Enabled: %v\n", exec.LogManager.IsEnabled())
+					cmd.Printf("  Log file: %s\n", exec.LogManager.GetLogFile())
 					return
 				}
 
 				setting := args[0]
 				if len(args) == 1 {
-					cmd.PrintErrln(cli.ErrorString("Value required"))
+					cmd.PrintErrln(fmt.Sprintf("Value required"))
 					return
 				}
 
@@ -216,33 +216,33 @@ func AddLogCommands(cli *CLI) func(cmd *cobra.Command) {
 				case "max_size":
 					size, err := strconv.ParseInt(value, 10, 64)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid size: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Invalid size: %v", err))
 						return
 					}
-					cli.LogManager.SetMaxSize(size)
-					cmd.Println(cli.SuccessString(fmt.Sprintf("Max log size set to %d MB", size)))
+					exec.LogManager.SetMaxSize(size)
+					cmd.Println(fmt.Sprintf("Max log size set to %d MB", size))
 
 				case "retention":
 					days, err := strconv.Atoi(value)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid days: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Invalid days: %v", err))
 						return
 					}
-					cli.LogManager.SetRetention(days)
-					cmd.Println(cli.SuccessString(fmt.Sprintf("Log retention set to %d days", days)))
+					exec.LogManager.SetRetention(days)
+					cmd.Println(fmt.Sprintf("Log retention set to %d days", days))
 
 				case "log_success":
 					enable := value == "true" || value == "1"
-					cli.LogManager.SetLogSuccess(enable)
-					cmd.Println(cli.SuccessString(fmt.Sprintf("Log success commands: %v", enable)))
+					exec.LogManager.SetLogSuccess(enable)
+					cmd.Println(fmt.Sprintf("Log success commands: %v", enable))
 
 				case "log_failures":
 					enable := value == "true" || value == "1"
-					cli.LogManager.SetLogFailures(enable)
-					cmd.Println(cli.SuccessString(fmt.Sprintf("Log failed commands: %v", enable)))
+					exec.LogManager.SetLogFailures(enable)
+					cmd.Println(fmt.Sprintf("Log failed commands: %v", enable))
 
 				default:
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Unknown setting: %s", setting)))
+					cmd.PrintErrln(fmt.Sprintf("Unknown setting: %s", setting))
 					cmd.Println("Available settings: max_size, retention, log_success, log_failures")
 				}
 			},

@@ -7,7 +7,7 @@ import (
 )
 
 // AddPromptCommands adds interactive prompt demonstration commands
-func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddPromptCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// Demo command to show various prompt types
 		var promptDemoCmd = &cobra.Command{
@@ -15,36 +15,36 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 			Short: "Demonstrate interactive prompts",
 			Long:  "Show examples of different types of interactive prompts available",
 			Run: func(cmd *cobra.Command, args []string) {
-				cmd.Println(cli.InfoString("=== Interactive Prompts Demo ==="))
+				cmd.Println(fmt.Sprintf("=== Interactive Prompts Demo ==="))
 				cmd.Println()
 
 				// 1. Simple confirmation
-				cmd.Println(cli.InfoString("1. Simple Confirmation"))
-				if cli.Confirm("Do you want to continue?") {
-					cmd.Println(cli.SuccessString("✓ User confirmed"))
+				cmd.Println(fmt.Sprintf("1. Simple Confirmation"))
+				if exec.Confirm("Do you want to continue?") {
+					cmd.Println(fmt.Sprintf("✓ User confirmed"))
 				} else {
-					cmd.Println(cli.InfoString("User declined"))
+					cmd.Println(fmt.Sprintf("User declined"))
 				}
 				cmd.Println()
 
 				// 2. String input
-				cmd.Println(cli.InfoString("2. String Input"))
-				name := cli.Prompt("Enter your name")
+				cmd.Println(fmt.Sprintf("2. String Input"))
+				name := exec.Prompt("Enter your name")
 				if name != "" {
 					cmd.Printf("Hello, %s!\n", name)
 				}
 				cmd.Println()
 
 				// 3. String input with default
-				cmd.Println(cli.InfoString("3. String Input with Default"))
-				color := cli.PromptDefault("Choose a color", "blue")
+				cmd.Println(fmt.Sprintf("3. String Input with Default"))
+				color := exec.PromptDefault("Choose a color", "blue")
 				cmd.Printf("You selected: %s\n", color)
 				cmd.Println()
 
 				// 4. Single selection
-				cmd.Println(cli.InfoString("4. Single Selection"))
+				cmd.Println(fmt.Sprintf("4. Single Selection"))
 				options := []string{"Red", "Green", "Blue", "Yellow"}
-				choice := cli.Select("Choose your favorite color", options)
+				choice := exec.Select("Choose your favorite color", options)
 				if choice != "" {
 					cmd.Printf("You chose: %s\n", choice)
 				} else {
@@ -53,16 +53,16 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 				cmd.Println()
 
 				// 5. Selection with default
-				cmd.Println(cli.InfoString("5. Selection with Default"))
+				cmd.Println(fmt.Sprintf("5. Selection with Default"))
 				environments := []string{"Development", "Staging", "Production"}
-				env := cli.SelectWithDefault("Select deployment environment", environments, 0)
+				env := exec.SelectWithDefault("Select deployment environment", environments, 0)
 				cmd.Printf("Selected environment: %s\n", env)
 				cmd.Println()
 
 				// 6. Multi-selection
-				cmd.Println(cli.InfoString("6. Multi-Selection"))
+				cmd.Println(fmt.Sprintf("6. Multi-Selection"))
 				features := []string{"Authentication", "Logging", "Caching", "Monitoring"}
-				selected := cli.MultiSelect("Select features to enable", features)
+				selected := exec.MultiSelect("Select features to enable", features)
 				if len(selected) > 0 {
 					cmd.Println("Selected features:")
 					for _, feature := range selected {
@@ -74,12 +74,12 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 				cmd.Println()
 
 				// 7. Integer input
-				cmd.Println(cli.InfoString("7. Integer Input"))
-				count := cli.PromptInteger("Enter a number", 10)
+				cmd.Println(fmt.Sprintf("7. Integer Input"))
+				count := exec.PromptInteger("Enter a number", 10)
 				cmd.Printf("You entered: %d\n", count)
 				cmd.Println()
 
-				cmd.Println(cli.SuccessString("=== Demo Complete ==="))
+				cmd.Println(fmt.Sprintf("=== Demo Complete ==="))
 			},
 		}
 
@@ -91,7 +91,7 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 			Args:  cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
 				message := args[0]
-				if cli.Confirm(message) {
+				if exec.Confirm(message) {
 					cmd.Println("yes")
 					cmd.SetContext(cmd.Context()) // Success
 				} else {
@@ -112,9 +112,9 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 				message := args[0]
 				var result string
 				if inputDefault != "" {
-					result = cli.PromptDefault(message, inputDefault)
+					result = exec.PromptDefault(message, inputDefault)
 				} else {
-					result = cli.Prompt(message)
+					result = exec.Prompt(message)
 				}
 				cmd.Println(result)
 			},
@@ -137,9 +137,9 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				var result string
 				if selectDefault >= 0 {
-					result = cli.SelectWithDefault(message, options, selectDefault)
+					result = exec.SelectWithDefault(message, options, selectDefault)
 				} else {
-					result = cli.Select(message, options)
+					result = exec.Select(message, options)
 				}
 
 				if result != "" {
@@ -162,7 +162,7 @@ func AddPromptCommands(cli *CLI) func(cmd *cobra.Command) {
 				message := args[0]
 				options := args[1:]
 
-				results := cli.MultiSelect(message, options)
+				results := exec.MultiSelect(message, options)
 				for _, result := range results {
 					cmd.Println(result)
 				}
@@ -189,25 +189,25 @@ func AddDryRunFlag(cmd *cobra.Command, dryRunVar *bool) {
 
 // ConfirmOrSkip checks if the --yes flag is set, or prompts for confirmation
 // Returns true if confirmed or yes flag is set
-func ConfirmOrSkip(cli *CLI, yesFlag bool, message string) bool {
+func ConfirmOrSkip(exec *CommandExecutor, yesFlag bool, message string) bool {
 	if yesFlag {
 		return true
 	}
-	return cli.Confirm(message)
+	return exec.Confirm(message)
 }
 
 // ConfirmDestructiveOrSkip checks if the --yes flag is set, or prompts for destructive confirmation
 // Returns true if confirmed or yes flag is set
-func ConfirmDestructiveOrSkip(cli *CLI, yesFlag bool, message string) bool {
+func ConfirmDestructiveOrSkip(exec *CommandExecutor, yesFlag bool, message string) bool {
 	if yesFlag {
 		return true
 	}
-	return cli.ConfirmDestructive(message)
+	return exec.ConfirmDestructive(message)
 }
 
 // ShowDryRun prints a dry-run message if the flag is set
-func ShowDryRun(cmd *cobra.Command, cli *CLI, dryRun bool, action string) {
+func ShowDryRun(cmd *cobra.Command, exec *CommandExecutor, dryRun bool, action string) {
 	if dryRun {
-		cmd.Println(cli.InfoString(fmt.Sprintf("[DRY RUN] Would %s", action)))
+		cmd.Println(fmt.Sprintf("[DRY RUN] Would %s", action))
 	}
 }

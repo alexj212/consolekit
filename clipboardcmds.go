@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os/exec"
+	osexec "os/exec"
 	"runtime"
 	"strings"
 
@@ -12,7 +12,7 @@ import (
 )
 
 // AddClipboardCommands adds clipboard integration commands
-func AddClipboardCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddClipboardCommands(executor *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// clip command - copy to clipboard
 		var clipCmd = &cobra.Command{
@@ -25,25 +25,25 @@ Examples:
   print "Hello World" | clip
   cat file.txt | clip`,
 			Run: func(cmd *cobra.Command, args []string) {
-				var clipCmd *exec.Cmd
+				var clipCmd *osexec.Cmd
 
 				switch runtime.GOOS {
 				case "linux":
 					// Try xclip first, fall back to xsel
-					if _, err := exec.LookPath("xclip"); err == nil {
-						clipCmd = exec.Command("xclip", "-selection", "clipboard")
-					} else if _, err := exec.LookPath("xsel"); err == nil {
-						clipCmd = exec.Command("xsel", "--clipboard", "--input")
+					if _, err := osexec.LookPath("xclip"); err == nil {
+						clipCmd = osexec.Command("xclip", "-selection", "clipboard")
+					} else if _, err := osexec.LookPath("xsel"); err == nil {
+						clipCmd = osexec.Command("xsel", "--clipboard", "--input")
 					} else {
-						cmd.PrintErrln(cli.ErrorString("Clipboard support requires xclip or xsel"))
+						cmd.PrintErrln(fmt.Sprintf("Clipboard support requires xclip or xsel"))
 						return
 					}
 				case "darwin":
-					clipCmd = exec.Command("pbcopy")
+					clipCmd = osexec.Command("pbcopy")
 				case "windows":
-					clipCmd = exec.Command("clip")
+					clipCmd = osexec.Command("clip")
 				default:
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Clipboard not supported on %s", runtime.GOOS)))
+					cmd.PrintErrln(fmt.Sprintf("Clipboard not supported on %s", runtime.GOOS))
 					return
 				}
 
@@ -56,24 +56,24 @@ Examples:
 				}
 
 				if err := scanner.Err(); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error reading input: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error reading input: %v", err))
 					return
 				}
 
 				// Write to clipboard
 				stdin, err := clipCmd.StdinPipe()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 					return
 				}
 
 				if err := clipCmd.Start(); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 					return
 				}
 
 				if _, err := io.WriteString(stdin, content.String()); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error writing to clipboard: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error writing to clipboard: %v", err))
 					stdin.Close()
 					return
 				}
@@ -81,11 +81,11 @@ Examples:
 				stdin.Close()
 
 				if err := clipCmd.Wait(); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 					return
 				}
 
-				cmd.Println(cli.SuccessString("Copied to clipboard"))
+				cmd.Println(fmt.Sprintf("Copied to clipboard"))
 			},
 		}
 
@@ -100,31 +100,31 @@ Examples:
   paste
   paste | grep "pattern"`,
 			Run: func(cmd *cobra.Command, args []string) {
-				var pasteCmd *exec.Cmd
+				var pasteCmd *osexec.Cmd
 
 				switch runtime.GOOS {
 				case "linux":
 					// Try xclip first, fall back to xsel
-					if _, err := exec.LookPath("xclip"); err == nil {
-						pasteCmd = exec.Command("xclip", "-selection", "clipboard", "-o")
-					} else if _, err := exec.LookPath("xsel"); err == nil {
-						pasteCmd = exec.Command("xsel", "--clipboard", "--output")
+					if _, err := osexec.LookPath("xclip"); err == nil {
+						pasteCmd = osexec.Command("xclip", "-selection", "clipboard", "-o")
+					} else if _, err := osexec.LookPath("xsel"); err == nil {
+						pasteCmd = osexec.Command("xsel", "--clipboard", "--output")
 					} else {
-						cmd.PrintErrln(cli.ErrorString("Clipboard support requires xclip or xsel"))
+						cmd.PrintErrln(fmt.Sprintf("Clipboard support requires xclip or xsel"))
 						return
 					}
 				case "darwin":
-					pasteCmd = exec.Command("pbpaste")
+					pasteCmd = osexec.Command("pbpaste")
 				case "windows":
-					pasteCmd = exec.Command("powershell", "-command", "Get-Clipboard")
+					pasteCmd = osexec.Command("powershell", "-command", "Get-Clipboard")
 				default:
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Clipboard not supported on %s", runtime.GOOS)))
+					cmd.PrintErrln(fmt.Sprintf("Clipboard not supported on %s", runtime.GOOS))
 					return
 				}
 
 				output, err := pasteCmd.Output()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 					return
 				}
 

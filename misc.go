@@ -11,7 +11,7 @@ import (
 )
 
 // AddMisc adds the commands echo and cat
-func AddMisc(cli *CLI) func(cmd *cobra.Command) {
+func AddMisc(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
@@ -40,7 +40,7 @@ Use '@' prefix to read embedded files from the scripts filesystem.`,
 					// Remove leading ./ if present
 					embedPath = strings.TrimPrefix(embedPath, "./")
 
-					content, err := cli.Scripts.ReadFile(embedPath)
+					content, err := exec.Scripts.ReadFile(embedPath)
 					if err != nil {
 						return fmt.Errorf("could not read embedded file: %s error: %v", filename, err)
 					}

@@ -13,7 +13,7 @@ import (
 )
 
 // AddMCPCommands adds MCP (Model Context Protocol) server commands
-func AddMCPCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddMCPCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		// mcp command - main MCP command
@@ -70,9 +70,9 @@ Example MCP client configuration (for Claude Desktop):
 				}()
 
 				if useHTTP {
-					server := NewMCPHTTPServer(cli, cli.AppName, "1.0.0")
+					server := NewMCPHTTPServer(exec, exec.AppName, "1.0.0")
 
-					fmt.Fprintf(os.Stderr, "Starting MCP HTTP server for %s...\n", cli.AppName)
+					fmt.Fprintf(os.Stderr, "Starting MCP HTTP server for %s...\n", exec.AppName)
 					fmt.Fprintf(os.Stderr, "Listening on %s\n", httpAddr)
 					fmt.Fprintf(os.Stderr, "SSE endpoint: http://%s/sse\n", httpAddr)
 					fmt.Fprintf(os.Stderr, "HTTP JSON-RPC endpoint: http://%s/mcp\n", httpAddr)
@@ -87,10 +87,10 @@ Example MCP client configuration (for Claude Desktop):
 				}
 
 				// Create and start MCP stdio server
-				server := NewMCPServer(cli, cli.AppName, "1.0.0")
+				server := NewMCPServer(exec, exec.AppName, "1.0.0")
 
 				// Write initialization message to stderr (not stdout, which is for MCP protocol)
-				fmt.Fprintf(os.Stderr, "Starting MCP server for %s...\n", cli.AppName)
+				fmt.Fprintf(os.Stderr, "Starting MCP server for %s...\n", exec.AppName)
 				fmt.Fprintf(os.Stderr, "Listening on stdin/stdout using JSON-RPC 2.0\n")
 
 				// Run the server
@@ -112,7 +112,7 @@ Example MCP client configuration (for Claude Desktop):
 			Run: func(cmd *cobra.Command, args []string) {
 				cmd.Println("MCP Server Information")
 				cmd.Println(strings.Repeat("=", 60))
-				cmd.Printf("Application: %s\n", cli.AppName)
+				cmd.Printf("Application: %s\n", exec.AppName)
 				cmd.Printf("Protocol: JSON-RPC 2.0 over stdio (or HTTP with --http)\n")
 				cmd.Printf("MCP Version: 2024-11-05\n")
 				cmd.Println()
@@ -124,7 +124,7 @@ Example MCP client configuration (for Claude Desktop):
 
 				cmd.Println("Available Commands as Tools:")
 				// Get root command and count tools
-				rootCmd := cli.BuildRootCmd()()
+				rootCmd := exec.RootCmd()
 				toolCount := 0
 				countTools(rootCmd, &toolCount)
 				cmd.Printf("  Total: %d commands\n", toolCount)
@@ -138,7 +138,7 @@ Example MCP client configuration (for Claude Desktop):
 				cmd.Println("Claude Desktop Configuration:")
 				cmd.Printf(`  {
     "mcpServers": {
-      "`+cli.AppName+`": {
+      "`+exec.AppName+`": {
         "command": "%s",
         "args": ["mcp", "start"]
       }
@@ -156,7 +156,7 @@ Example MCP client configuration (for Claude Desktop):
 				cmd.Println(strings.Repeat("=", 60))
 
 				// Get root command
-				rootCmd := cli.BuildRootCmd()()
+				rootCmd := exec.RootCmd()
 
 				// Collect and display tools
 				displayTools(rootCmd, "", cmd)

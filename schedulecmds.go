@@ -25,7 +25,7 @@ type ScheduledTask struct {
 }
 
 // AddScheduleCommands adds command scheduling commands
-func AddScheduleCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddScheduleCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		var scheduleCmd = &cobra.Command{
 			Use:   "schedule",
@@ -54,26 +54,26 @@ Examples:
 
 				parts := strings.Split(timeStr, ":")
 				if len(parts) < 2 || len(parts) > 3 {
-					cmd.PrintErrln(cli.ErrorString("Invalid time format. Use HH:MM or HH:MM:SS"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid time format. Use HH:MM or HH:MM:SS"))
 					return
 				}
 
 				hour, err = strconv.Atoi(parts[0])
 				if err != nil || hour < 0 || hour > 23 {
-					cmd.PrintErrln(cli.ErrorString("Invalid hour"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid hour"))
 					return
 				}
 
 				min, err = strconv.Atoi(parts[1])
 				if err != nil || min < 0 || min > 59 {
-					cmd.PrintErrln(cli.ErrorString("Invalid minute"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid minute"))
 					return
 				}
 
 				if len(parts) == 3 {
 					sec, err = strconv.Atoi(parts[2])
 					if err != nil || sec < 0 || sec > 59 {
-						cmd.PrintErrln(cli.ErrorString("Invalid second"))
+						cmd.PrintErrln(fmt.Sprintf("Invalid second"))
 						return
 					}
 				}
@@ -90,7 +90,7 @@ Examples:
 				duration := targetTime.Sub(now)
 
 				task := &ScheduledTask{
-					ID:      cli.JobManager.getNextID(),
+					ID:      exec.JobManager.getNextID(),
 					Command: command,
 					Time:    targetTime,
 					Repeat:  false,
@@ -100,7 +100,7 @@ Examples:
 
 				// Start timer
 				task.timer = time.AfterFunc(duration, func() {
-					output, err := cli.ExecuteLine(task.Command, nil)
+					output, err := exec.Execute(task.Command, nil)
 					if output != "" {
 						fmt.Print(output)
 						if !strings.HasSuffix(output, "\n") {
@@ -111,12 +111,12 @@ Examples:
 						fmt.Printf("Scheduled command error: %v\n", err)
 					}
 					// Remove from schedule list after execution
-					cli.JobManager.removeScheduledTask(task.ID)
+					exec.JobManager.removeScheduledTask(task.ID)
 				})
 
-				cli.JobManager.addScheduledTask(task)
+				exec.JobManager.addScheduledTask(task)
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Scheduled task %d to run at %s", task.ID, targetTime.Format("15:04:05"))))
+				cmd.Println(fmt.Sprintf("Scheduled task %d to run at %s", task.ID, targetTime.Format("15:04:05")))
 			},
 		}
 
@@ -138,14 +138,14 @@ Examples:
 
 				duration, err := time.ParseDuration(durationStr)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid duration: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid duration: %v", err))
 					return
 				}
 
 				targetTime := time.Now().Add(duration)
 
 				task := &ScheduledTask{
-					ID:      cli.JobManager.getNextID(),
+					ID:      exec.JobManager.getNextID(),
 					Command: command,
 					Time:    targetTime,
 					Repeat:  false,
@@ -155,7 +155,7 @@ Examples:
 
 				// Start timer
 				task.timer = time.AfterFunc(duration, func() {
-					output, err := cli.ExecuteLine(task.Command, nil)
+					output, err := exec.Execute(task.Command, nil)
 					if output != "" {
 						fmt.Print(output)
 						if !strings.HasSuffix(output, "\n") {
@@ -166,12 +166,12 @@ Examples:
 						fmt.Printf("Scheduled command error: %v\n", err)
 					}
 					// Remove from schedule list after execution
-					cli.JobManager.removeScheduledTask(task.ID)
+					exec.JobManager.removeScheduledTask(task.ID)
 				})
 
-				cli.JobManager.addScheduledTask(task)
+				exec.JobManager.addScheduledTask(task)
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Scheduled task %d to run in %s", task.ID, duration)))
+				cmd.Println(fmt.Sprintf("Scheduled task %d to run in %s", task.ID, duration))
 			},
 		}
 
@@ -193,12 +193,12 @@ Examples:
 
 				interval, err := time.ParseDuration(intervalStr)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid interval: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid interval: %v", err))
 					return
 				}
 
 				task := &ScheduledTask{
-					ID:       cli.JobManager.getNextID(),
+					ID:       exec.JobManager.getNextID(),
 					Command:  command,
 					Interval: interval,
 					Repeat:   true,
@@ -218,7 +218,7 @@ Examples:
 							task.mu.RUnlock()
 
 							if enabled {
-								output, err := cli.ExecuteLine(command, nil)
+								output, err := exec.Execute(command, nil)
 								if output != "" {
 									fmt.Print(output)
 									if !strings.HasSuffix(output, "\n") {
@@ -235,9 +235,9 @@ Examples:
 					}
 				}()
 
-				cli.JobManager.addScheduledTask(task)
+				exec.JobManager.addScheduledTask(task)
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Scheduled repeating task %d every %s", task.ID, interval)))
+				cmd.Println(fmt.Sprintf("Scheduled repeating task %d every %s", task.ID, interval))
 			},
 		}
 
@@ -246,7 +246,7 @@ Examples:
 			Use:   "list",
 			Short: "List all scheduled tasks",
 			Run: func(cmd *cobra.Command, args []string) {
-				tasks := cli.JobManager.getScheduledTasks()
+				tasks := exec.JobManager.getScheduledTasks()
 
 				if len(tasks) == 0 {
 					cmd.Println("No scheduled tasks")
@@ -286,13 +286,13 @@ Examples:
 			Run: func(cmd *cobra.Command, args []string) {
 				id, err := strconv.Atoi(args[0])
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString("Invalid task ID"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid task ID"))
 					return
 				}
 
-				task := cli.JobManager.getScheduledTask(id)
+				task := exec.JobManager.getScheduledTask(id)
 				if task == nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Task %d not found", id)))
+					cmd.PrintErrln(fmt.Sprintf("Task %d not found", id))
 					return
 				}
 
@@ -307,9 +307,9 @@ Examples:
 					close(task.done)
 				}
 
-				cli.JobManager.removeScheduledTask(id)
+				exec.JobManager.removeScheduledTask(id)
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Cancelled task %d", id)))
+				cmd.Println(fmt.Sprintf("Cancelled task %d", id))
 			},
 		}
 
@@ -321,25 +321,25 @@ Examples:
 			Run: func(cmd *cobra.Command, args []string) {
 				id, err := strconv.Atoi(args[0])
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString("Invalid task ID"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid task ID"))
 					return
 				}
 
-				task := cli.JobManager.getScheduledTask(id)
+				task := exec.JobManager.getScheduledTask(id)
 				if task == nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Task %d not found", id)))
+					cmd.PrintErrln(fmt.Sprintf("Task %d not found", id))
 					return
 				}
 
 				if !task.Repeat {
-					cmd.PrintErrln(cli.ErrorString("Cannot pause one-time tasks (use cancel instead)"))
+					cmd.PrintErrln(fmt.Sprintf("Cannot pause one-time tasks (use cancel instead)"))
 					return
 				}
 
 				task.mu.Lock()
 				task.Enabled = false
 				task.mu.Unlock()
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Paused task %d", id)))
+				cmd.Println(fmt.Sprintf("Paused task %d", id))
 			},
 		}
 
@@ -351,25 +351,25 @@ Examples:
 			Run: func(cmd *cobra.Command, args []string) {
 				id, err := strconv.Atoi(args[0])
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString("Invalid task ID"))
+					cmd.PrintErrln(fmt.Sprintf("Invalid task ID"))
 					return
 				}
 
-				task := cli.JobManager.getScheduledTask(id)
+				task := exec.JobManager.getScheduledTask(id)
 				if task == nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Task %d not found", id)))
+					cmd.PrintErrln(fmt.Sprintf("Task %d not found", id))
 					return
 				}
 
 				if !task.Repeat {
-					cmd.PrintErrln(cli.ErrorString("Cannot resume one-time tasks"))
+					cmd.PrintErrln(fmt.Sprintf("Cannot resume one-time tasks"))
 					return
 				}
 
 				task.mu.Lock()
 				task.Enabled = true
 				task.mu.Unlock()
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Resumed task %d", id)))
+				cmd.Println(fmt.Sprintf("Resumed task %d", id))
 			},
 		}
 

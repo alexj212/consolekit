@@ -23,22 +23,23 @@ Perfect for building internal tools, administrative consoles, and developer util
 ### Core Capabilities
 
 - 🖥️ **Interactive REPL** - Full-featured shell-like environment with history, completion, and line editing
+- 🌐 **Multi-Transport** - Serve commands over REPL, SSH, HTTP/WebSocket, or all simultaneously
 - 🔗 **Command Chaining** - Execute multiple commands sequentially using `;` separator
 - 🚦 **Piping** - Chain command outputs using Unix-style `|` pipes
 - 📁 **I/O Redirection** - Redirect command output to files with `>` while displaying on stdout
 - 🎯 **Intelligent Completion** - Automatic command, subcommand, and flag completion via Cobra integration
-- 📜 **Command History** - Persistent history with search and navigation (stored in `~/.{appname}.history`)
+- 📜 **Command History** - Persistent history with search, bookmarks, and replay
 
 ### Advanced Features
 
-- 🔧 **Modular Architecture** - Plug-and-play command modules for easy feature integration
-- 🏷️ **Aliases** - Create command shortcuts with persistent storage (`~/.{appname}.aliases`)
-- 🔄 **Token Replacement** - Dynamic variable substitution with `@varname`, `@env:VAR`, and `@exec:command`
-- 📝 **Script Execution** - Run embedded or external scripts with argument passing (`@arg0`, `@arg1`, etc.)
-- ⚡ **Background Jobs** - Execute commands asynchronously with `--spawn` flag
+- 🏗️ **Three-Layer Architecture** - CommandExecutor (core) + TransportHandlers (SSH/HTTP/REPL) + DisplayAdapters (UI)
+- 🏷️ **Aliases** - Create command shortcuts with persistent storage
+- 🔄 **Variable Expansion** - Dynamic variable substitution with `@varname`, `@env:VAR`, and `@exec:command`
+- 📝 **Script Execution** - Run embedded or external scripts with argument passing
+- ⚡ **Background Jobs** - Execute commands asynchronously with full job management
 - 💬 **Comment Support** - Use `#` for inline comments in commands and scripts
 - 🎨 **Color Support** - Automatic color output with TTY detection and `NO_COLOR` support
-- 🔒 **Recursion Protection** - Built-in safeguards against infinite execution loops (max depth: 10)
+- 🔒 **Thread-Safe** - Concurrent command execution from multiple transports
 
 ## 📦 Installation
 
@@ -50,49 +51,76 @@ go get github.com/alexj212/consolekit
 
 ## 🚀 Quick Start
 
-Create a simple CLI application in minutes:
+### Simple REPL Application
 
 ```go
 package main
 
 import (
     "embed"
-    "fmt"
+    "log"
     "github.com/alexj212/consolekit"
-    "github.com/alexj212/consolekit/cmds"
 )
 
 //go:embed scripts/*
 var scripts embed.FS
 
 func main() {
-    // Create CLI with standard command modules
-    cli, err := consolekit.NewCLI("myapp", func(cli *consolekit.CLI) error {
-        cmds.AddAlias(cli)      // Alias management
-        cmds.AddExec(cli)       // OS command execution
-        cmds.AddHistory(cli)    // History commands
-        cmds.AddMisc(cli)       // Utility commands (cat, grep, env)
-        cmds.AddBaseCmds(cli)   // Core commands (print, set, if, etc.)
-        cmds.AddRun(cli, scripts) // Script execution
+    // Create command executor with builtin commands
+    executor, err := consolekit.NewCommandExecutor("myapp", func(exec *consolekit.CommandExecutor) error {
+        exec.Scripts = scripts
+        exec.AddBuiltinCommands()  // Adds all standard commands
         return nil
     })
     if err != nil {
-        fmt.Printf("Error initializing CLI: %v\n", err)
-        return
+        log.Fatal(err)
     }
 
-    // Start the interactive REPL
-    if err := cli.AppBlock(); err != nil {
-        fmt.Printf("Error: %v\n", err)
+    // Create REPL handler
+    repl := consolekit.NewREPLHandler(executor)
+    repl.SetPrompt(func() string {
+        return "\nmyapp> "
+    })
+
+    // Start interactive REPL
+    if err := repl.Run(); err != nil {
+        log.Fatal(err)
     }
 }
 ```
 
-Build and run:
+### Multi-Transport Server (REPL + SSH + HTTP)
 
-```bash
-go build -o myapp
-./myapp
+```go
+package main
+
+import (
+    "log"
+    "github.com/alexj212/consolekit"
+)
+
+func main() {
+    // Create shared command executor
+    executor, _ := consolekit.NewCommandExecutor("myapp", func(exec *consolekit.CommandExecutor) error {
+        exec.AddBuiltinCommands()
+        return nil
+    })
+
+    // Start SSH server (port 2222)
+    hostKey, _ := consolekit.GenerateHostKey()
+    sshHandler := consolekit.NewSSHHandler(executor, ":2222", hostKey)
+    go sshHandler.Start()
+
+    // Start HTTP/WebSocket server (port 8080)
+    httpHandler := consolekit.NewHTTPHandler(executor, ":8080", "admin", "password")
+    go httpHandler.Start()
+
+    // Start local REPL
+    repl := consolekit.NewREPLHandler(executor)
+    if err := repl.Run(); err != nil {
+        log.Fatal(err)
+    }
+}
 ```
 
 ## 💡 Usage Examples
@@ -105,7 +133,7 @@ myapp> print "Hello, World!"
 Hello, World!
 
 # Command chaining with semicolons
-myapp> set greeting "Hello" ; print @greeting
+myapp> let greeting="Hello" ; print @greeting
 Hello
 
 # Piping between commands
@@ -115,6 +143,29 @@ line2
 # File redirection (displays AND writes to file)
 myapp> print "Logged data" > output.txt
 Logged data
+```
+
+### Variables & Expansion
+
+```bash
+# Set and use variables
+myapp> let name="Alice"
+myapp> print "Hello, @name"
+Hello, Alice
+
+# Environment variables
+myapp> print "User: @env:USER"
+User: john
+
+# Command substitution
+myapp> let timestamp=$(date)
+myapp> print "Time: @timestamp"
+Time: 2025-01-31 15:30:45
+
+# Increment/decrement
+myapp> let counter=0
+myapp> inc counter
+counter = 1
 ```
 
 ### Aliases
@@ -133,27 +184,6 @@ myapp> alias
 Aliases:
 ----------------------------------------
 ls=print 'Listing files...'
-
-# Remove an alias
-myapp> unalias ls
-```
-
-### Token Replacement
-
-```bash
-# Set and use variables
-myapp> set name "Alice"
-myapp> print "Hello, @name"
-Hello, Alice
-
-# Environment variables
-myapp> print "User: @env:USER"
-User: john
-
-# Command execution in tokens
-myapp> set timestamp "@exec:date"
-myapp> print "Time: @timestamp"
-Time: 2025-12-11 15:30:45
 ```
 
 ### Script Execution
@@ -163,7 +193,7 @@ Create a script file `tasks.sh`:
 ```bash
 # tasks.sh
 print "Starting task with arg: @arg0"
-set counter "5"
+let counter=5
 repeat --count @counter --sleep 1 "print 'Working...'"
 print "Task completed!"
 ```
@@ -175,174 +205,138 @@ Execute the script:
 myapp> run tasks.sh "my-task"
 Starting task with arg: my-task
 Working...
-Working...
 ...
 
 # Run embedded script (from embed.FS)
 myapp> run @embedded-script
 ```
 
-### Background Execution & Job Management
+### Background Jobs
 
 ```bash
-# Run command in background (automatically tracked)
+# Run command in background
 myapp> osexec --background "sleep 60"
 Command started in background with PID 12345 (Job ID: 1)
 
 # List all jobs
 myapp> jobs
 Background Jobs:
---------------------------------------------------------------------------------
 [1] [running] PID:12345 Duration:5s
     sleep 60
 
-# View job details
+# View job details and logs
 myapp> job 1
-==============================================================================
-Job ID: 1
-Command: sleep 60
-Status: running
-PID: 12345
-Started: 2025-12-11 15:30:00
-Duration: 30s
-==============================================================================
-
-# View job output
 myapp> job 1 logs
 
-# Kill a job
+# Kill a job or all jobs
 myapp> job 1 kill
-
-# Wait for job completion
-myapp> job 1 wait
-
-# Kill all running jobs
 myapp> killall
 ```
 
-### Enhanced Variables
+### History & Bookmarks
 
 ```bash
-# Set variables with 'let' command
-myapp> let counter=0
-counter = 0
+# Search history
+myapp> history search "print"
+0: print "test"
+15: print @timestamp
 
-# Command substitution
-myapp> let timestamp=$(date)
-timestamp = 2025-12-11 15:30:00
+# Replay command by index
+myapp> history replay 15
 
-# Increment/decrement numeric variables
-myapp> inc counter
-counter = 1
+# Bookmark frequently used commands
+myapp> history bookmark add deploy "run deploy.sh prod"
+myapp> history bookmark run deploy
 
-myapp> dec counter 5
-counter = -4
-
-# List all variables
-myapp> vars
-Variables:
-------------------------------------------------------------
-counter              = -4
-timestamp            = 2025-12-11 15:30:00
-
-# Export as shell script
-myapp> vars --export
-# Variable export
-export COUNTER="-4"
-export TIMESTAMP="2025-12-11 15:30:00"
-
-# Export as JSON
-myapp> vars --json
-{
-  "counter": "-4",
-  "timestamp": "2025-12-11 15:30:00"
-}
-
-# Remove variables
-myapp> unset counter
-```
-
-### Configuration Management
-
-```bash
-# View configuration
-myapp> config show
-Configuration:
-============================================================
-
-[settings]
-  history_size = 10000
-  prompt = "%s > "
-  color = true
-  pager = "less -R"
-
-[logging]
-  enabled = false
-  log_file = "~/.myapp/audit.log"
-  ...
-
-# Get specific config value
-myapp> config get settings.history_size
-settings.history_size = 10000
-
-# Set config value
-myapp> config set settings.history_size 5000
-Set settings.history_size = 5000
-
-# Edit config file
-myapp> config edit
-# Opens ~/.myapp/config.toml in $EDITOR
-
-# Reload configuration
-myapp> config reload
-Configuration reloaded
-
-# Show config file path
-myapp> config path
-/home/user/.myapp/config.toml
+# View statistics
+myapp> history stats
+Total commands: 150
+Unique commands: 45
+Top 10 most used...
 ```
 
 ## 🏗️ Architecture
 
-### Command Modules
+### Three-Layer Design
 
-ConsoleKit uses a modular architecture for organizing functionality:
+ConsoleKit uses a clean three-layer architecture:
+
+```
+┌─────────────────────────────────────────┐
+│         Transport Handlers              │
+│  (How commands are delivered)           │
+│                                         │
+│  • REPLHandler (local terminal)        │
+│  • SSHHandler (SSH server)             │
+│  • HTTPHandler (HTTP/WebSocket)        │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│         CommandExecutor                 │
+│  (Pure command execution engine)        │
+│                                         │
+│  • Execute commands                     │
+│  • Expand variables                     │
+│  • Manage jobs, config, logs            │
+│  • Thread-safe state                    │
+└─────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────┐
+│         Display Adapters                │
+│  (UI abstraction - REPL only)           │
+│                                         │
+│  • ReflectiveAdapter (default)         │
+│  • BubbletteaAdapter (optional)        │
+└─────────────────────────────────────────┘
+```
+
+### Custom Commands
 
 ```go
 // Custom command module
-func AddMyFeature(cli *consolekit.CLI) func(cmd *cobra.Command) {
+func AddMyCommand(exec *consolekit.CommandExecutor) func(*cobra.Command) {
     return func(rootCmd *cobra.Command) {
-        myCmd := &cobra.Command{
-            Use:   "mycommand [args]",
-            Short: "Description of my command",
+        cmd := &cobra.Command{
+            Use:   "greet [name]",
+            Short: "Greet someone",
+            Args:  cobra.ExactArgs(1),
             Run: func(cmd *cobra.Command, args []string) {
-                cmd.Println("My custom command")
+                name := args[0]
+                // Expand variables in arguments
+                name = exec.ExpandVariables(cmd, nil, name)
+                cmd.Printf("Hello, %s!\n", name)
             },
         }
-        rootCmd.AddCommand(myCmd)
+        rootCmd.AddCommand(cmd)
     }
 }
 
-// Register the module
-cli, err := consolekit.NewCLI("myapp", func(cli *consolekit.CLI) error {
-    AddMyFeature(cli)
+// Register the command
+executor, _ := consolekit.NewCommandExecutor("myapp", func(exec *consolekit.CommandExecutor) error {
+    AddMyCommand(exec)
     return nil
 })
 ```
 
-### Built-in Modules
+### Built-in Command Modules
 
-| Module | Commands | Description |
-|--------|----------|-------------|
-| **base** | `print`, `set`, `if`, `date`, `sleep`, `wait`, `repeat`, `http`, `cls`, `exit` | Core utility commands |
-| **alias** | `alias`, `unalias`, `aliases` | Alias management with persistence |
-| **history** | `history`, `history search`, `history clear` | Command history operations |
-| **run** | `run`, `vs`, `spawn` | Script execution and background jobs |
-| **exec** | `osexec` | Direct OS command execution with job tracking |
-| **misc** | `cat`, `grep`, `env` | File and environment utilities |
-| **jobs** | `jobs`, `job`, `killall`, `jobclean` | Background job management *(Phase 1)* |
-| **variables** | `let`, `unset`, `vars`, `inc`, `dec` | Enhanced variable system *(Phase 1)* |
-| **config** | `config get/set/edit/reload/show/path/save` | Configuration management *(Phase 1)* |
+| Module | Key Commands | Description |
+|--------|--------------|-------------|
+| **base** | `print`, `let`, `if`, `date`, `sleep`, `repeat`, `http` | Core utilities |
+| **alias** | `alias`, `unalias` | Alias management with persistence |
+| **history** | `history list/search/replay`, `bookmark add/run` | History and bookmarks |
+| **run** | `run`, `vs`, `spawn` | Script execution |
+| **exec** | `osexec` | OS command execution |
+| **jobs** | `jobs`, `job`, `killall` | Background job management |
+| **variables** | `let`, `vars`, `inc`, `dec` | Variable operations |
+| **config** | `config get/set/edit` | Configuration management |
+| **logging** | `log enable/show/export` | Command audit logging |
+| **template** | `template exec/create` | Script templating |
+| **notify** | `notify send` | Desktop notifications |
+| **data** | `json`, `yaml`, `csv` | Data parsing/conversion |
+| **format** | `table`, `highlight` | Output formatting |
 
 ## 🔐 Security
 
@@ -354,41 +348,37 @@ cli, err := consolekit.NewCLI("myapp", func(cli *consolekit.CLI) error {
 - Local development tools
 - Internal automation scripts
 - Trusted administrator consoles
+- SSH access to internal systems
 - Single-user applications
-- Prototyping and testing
 
 ### Not Suitable For ❌
-- Web-facing applications
+- Web-facing applications (without extensive hardening)
 - Multi-tenant systems
 - Untrusted user environments
-- Systems requiring command restrictions
-- Compliance-restricted environments (without extensive hardening)
+- Public APIs
 
 ### Security Features
 
-- ✅ **Recursion Protection** - Maximum execution depth limit (10 levels) prevents infinite loops
-- ✅ **HTTP Timeouts** - 30-second timeout on HTTP requests prevents hanging
-- ✅ **Proper Quote Handling** - Shellquote parsing prevents some injection vectors
+- ✅ **Recursion Protection** - Maximum execution depth limit prevents infinite loops
+- ✅ **Thread-Safe** - Concurrent access from multiple transports
+- ✅ **Proper Quote Handling** - Prevents some injection vectors
 - ✅ **Scoped Variables** - Script arguments are isolated per execution
+- ✅ **SSH Authentication** - Public key, password, or anonymous modes
+- ✅ **HTTP Authentication** - Basic auth for HTTP transport
 
-### Security Considerations
-
-- **File System Access** - Commands can read any file accessible to the process
-- **OS Command Execution** - Full command execution with process permissions
-- **Token Injection** - `@exec:` tokens allow arbitrary command execution
-- **Background Processes** - Spawned processes may outlive the CLI session
-- **History Storage** - Commands stored in plaintext in `~/.{appname}.history`
-
-**See [SECURITY.md](SECURITY.md) for comprehensive security documentation, threat model, and deployment recommendations.**
+**See [SECURITY.md](SECURITY.md) for comprehensive security documentation.**
 
 ## 📚 Documentation
 
 | Document | Description |
 |----------|-------------|
-| **[CLAUDE.md](CLAUDE.md)** | Architecture guide and implementation details |
+| **[API_CHANGES.md](API_CHANGES.md)** | v0.7.0 API naming refactor details and migration guide |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Three-layer architecture and design patterns |
+| **[COMMANDS.md](COMMANDS.md)** | Complete command reference |
+| **[MCP_INTEGRATION.md](MCP_INTEGRATION.md)** | Model Context Protocol integration guide |
 | **[SECURITY.md](SECURITY.md)** | Security considerations and deployment guidelines |
-| **[REVIEW.md](REVIEW.md)** | Code review findings and fix status |
-| **[GoDoc](https://pkg.go.dev/github.com/alexj212/consolekit)** | API reference and package documentation |
+| **[CLAUDE.md](CLAUDE.md)** | Development guide for Claude Code |
+| **[examples/EXAMPLES.md](examples/EXAMPLES.md)** | Example applications and use cases |
 
 ## 🛠️ Development
 
@@ -401,62 +391,61 @@ go build
 # Run tests
 go test ./...
 
-# Run example application
-cd examples/simple
-go run main.go
+# Run parser tests
+go test ./parser
+
+# Run benchmarks
+go test -bench . ./...
 ```
 
 ### Project Structure
 
 ```
 consolekit/
-├── cli.go              # Core CLI implementation
-├── alias.go            # Alias system
+├── executor.go         # CommandExecutor - core execution engine
+├── handler_repl.go     # REPLHandler - local terminal
+├── handler_ssh.go      # SSHHandler - SSH server
+├── handler_http.go     # HTTPHandler - HTTP/WebSocket server
+├── transport.go        # TransportHandler interface
+├── display.go          # DisplayAdapter interface
+├── history.go          # HistoryManager
+├── jobs.go             # JobManager
+├── logging.go          # LogManager
+├── template.go         # TemplateManager
+├── notify.go           # NotificationManager
+├── config.go           # Configuration system
 ├── base.go             # Base commands
-├── exec.go             # OS command execution
-├── history.go          # History management
-├── run.go              # Script execution
-├── misc.go             # Utility commands
-├── utils.go            # Helper functions
+├── *cmds.go            # Command modules
 ├── parser/             # Command parser
-│   └── parser.go
 ├── safemap/            # Thread-safe map
-│   └── safemap.go
 └── examples/           # Example applications
-    └── simple/
+    ├── simple/         # Basic REPL
+    ├── ssh_server/     # SSH server
+    ├── multi_transport/# All transports
+    └── rest_api/       # REST API wrapper
 ```
 
 ## 🤝 Contributing
 
-Contributions are welcome! We appreciate:
-
-- 🐛 **Bug reports** - Open an issue with reproduction steps
-- 💡 **Feature requests** - Describe your use case and proposed solution
-- 🔧 **Pull requests** - Fix bugs or add features (please discuss major changes first)
-- 📖 **Documentation** - Improve docs, examples, or code comments
-- 🧪 **Tests** - Add test coverage for existing or new functionality
-
-### Contribution Guidelines
+Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes with clear commit messages
-4. Add or update tests as needed
-5. Ensure `go test ./...` passes
-6. Submit a pull request
+2. Create a feature branch
+3. Add or update tests
+4. Ensure `go test ./...` passes
+5. Submit a pull request
 
 ## 📝 License
 
-ConsoleKit is released under the [MIT License](LICENSE). See LICENSE file for details.
+ConsoleKit is released under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
 Built with excellent Go libraries:
 - [spf13/cobra](https://github.com/spf13/cobra) - Command framework
-- [reeflective/console](https://github.com/reeflective/console) - REPL interface with completion
+- [reeflective/console](https://github.com/reeflective/console) - REPL interface
 - [kballard/go-shellquote](https://github.com/kballard/go-shellquote) - Shell-style quote parsing
 - [fatih/color](https://github.com/fatih/color) - Colorized output
-- [mattn/go-isatty](https://github.com/mattn/go-isatty) - TTY detection
 
 ---
 
@@ -467,3 +456,24 @@ Built with excellent Go libraries:
 Made with ❤️ for building powerful CLI tools
 
 </div>
+
+---
+
+## 📖 Examples
+
+ConsoleKit includes 6 comprehensive example applications. See **[EXAMPLES_REFERENCE.md](EXAMPLES_REFERENCE.md)** for complete documentation including:
+
+- Command-line flags and options
+- Environment variable configuration  
+- Authentication setup
+- API endpoints and usage
+- Docker deployment
+- Troubleshooting guides
+
+**Quick Links:**
+- [Simple REPL](EXAMPLES_REFERENCE.md#1-simple-example-examplessimple) - Getting started
+- [SSH Server](EXAMPLES_REFERENCE.md#2-ssh-server-example-examplesssh_server) - Remote CLI access
+- [Multi-Transport](EXAMPLES_REFERENCE.md#3-multi-transport-example-examplesmulti_transport) - All transports
+- [Production Server](EXAMPLES_REFERENCE.md#4-production-server-example-examplesproduction_server) - Enterprise deployment
+- [REST API](EXAMPLES_REFERENCE.md#5-rest-api-example-examplesrest_api) - HTTP API integration
+- [Tailscale HTTP](EXAMPLES_REFERENCE.md#6-tailscale-http-example-examplestailscale_http) - Secure mesh networking

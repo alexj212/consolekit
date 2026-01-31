@@ -41,7 +41,7 @@ go test ./...
 
 ### CLI Initialization Flow
 
-1. **CLI Creation** (`NewCLI` in cli.go): Creates the CLI instance with:
+1. **CLI Creation** (`NewCommandExecutor` in cli.go): Creates the CLI instance with:
    - History file management (stored in user home directory as `.{appname}.history`)
    - Color support based on TTY detection
    - **Per-instance aliases** stored in CLI.aliases SafeMap (not global)
@@ -56,9 +56,9 @@ go test ./...
    - Commands are registered during CLI initialization via `rootInit` callbacks
    - Commands are added to console menu after customizer completes
 
-3. **Command Execution** (`ExecuteLine` in cli.go):
+3. **Command Execution** (`Execute` in cli.go):
    - **Increments recursion depth** and checks against maxExecDepth to prevent infinite loops
-   - Performs token replacement (`ReplaceDefaults`) with alias and variable expansion
+   - Performs token replacement (`ExpandCommand`) with alias and variable expansion
    - Parses commands using `github.com/alexj212/console/parser` with shellquote support
    - Executes through `executeCommands` with pipe support
 
@@ -69,21 +69,21 @@ The REPL is powered by `reeflective/console` which provides:
 - **Pre-command hooks** for token replacement and alias expansion before execution
 - **Post-command hooks** for history management
 - **History Management**: File-based history with proper loading/saving
-- **Console creation** happens in `NewCLI()` with eager initialization
+- **Console creation** happens in `NewCommandExecutor()` with eager initialization
 - **AppBlock** (cli.go): Starts the REPL (console is already created and configured)
-- **Console() method**: Always returns a valid `*console.Console` instance (created during NewCLI)
-- **SetPrompt() method**: Can be called anytime after NewCLI() to update the prompt function
+- **Console() method**: Always returns a valid `*console.Console` instance (created during NewCommandExecutor)
+- **SetPrompt() method**: Can be called anytime after NewCommandExecutor() to update the prompt function
 
 ### Token Replacement System
 
-The token replacement system (cli.go `ReplaceDefaults`) supports:
+The token replacement system (cli.go `ExpandCommand`) supports:
 - **Aliases**: Replaced first from per-instance `CLI.aliases` SafeMap
 - **Environment variables**: `@env:VAR_NAME`
 - **Command execution**: `@exec:command` - executes command and uses output (with recursion protection)
-- **Default variables**: `@varname` - from CLI.Defaults SafeMap or scoped defs parameter
-- **Custom replacers**: Via `CLI.TokenReplacers` slice
+- **Default variables**: `@varname` - from CLI.Variables SafeMap or scoped scope parameter
+- **Custom replacers**: Via `CLI.VariableExpanders` slice
 
-Execution order: Aliases → Defaults → Custom TokenReplacers → Built-in token patterns
+Execution order: Aliases → Defaults → Custom VariableExpanders → Built-in token patterns
 
 **Security Note**: The `@exec:` token allows arbitrary command execution. Recursion is limited to 10 levels to prevent stack overflow attacks.
 
@@ -135,7 +135,7 @@ Multi-line commands supported with backslash continuation (`\`).
 
 Thread-safe generic map used for:
 - **Per-instance aliases storage** (CLI.aliases)
-- **Per-CLI default variables** (CLI.Defaults)
+- **Per-CLI default variables** (CLI.Variables)
 - **Scoped script arguments** (created per script execution)
 - Provides `ForEach`, `SortedForEach`, `Get`, `Set`, `Delete` operations
 
@@ -179,7 +179,7 @@ Thread-safe generic map used for:
   - `inc [name] [amount]` - Increment numeric variable (default +1)
   - `dec [name] [amount]` - Decrement numeric variable (default -1)
 
-- **Storage**: Variables stored with `@` prefix in `CLI.Defaults` SafeMap
+- **Storage**: Variables stored with `@` prefix in `CLI.Variables` SafeMap
 
 ### Configuration System (config.go + configcmds.go)
 
@@ -259,7 +259,7 @@ Thread-safe generic map used for:
   retention_days = 90
   ```
 
-- **Integration**: Logging is automatically integrated into `ExecuteLine` and only logs top-level commands (not recursive calls) to avoid log spam
+- **Integration**: Logging is automatically integrated into `Execute` and only logs top-level commands (not recursive calls) to avoid log spam
 
 **Security Note**: Audit logs may contain sensitive command arguments and output. Secure the log file appropriately.
 
@@ -542,7 +542,7 @@ Thread-safe generic map used for:
 - Tool documentation generation
 
 **Implementation Notes**:
-- Server uses `BuildRootCmd()` to access commands dynamically
+- Server uses `RootCmd()` to access commands dynamically
 - Works in both REPL and non-REPL modes
 - Hidden commands are excluded from tool list
 - Parent-only commands (no Run function) are recursively expanded
@@ -584,15 +584,15 @@ The library was migrated from `github.com/alexj212/console` → `c-bata/go-promp
 The parser now uses `github.com/kballard/go-shellquote` for proper quote and escape handling. This fixes issues where special characters (`|`, `>`, `;`) inside quoted strings were incorrectly treated as operators.
 
 ### Recursion Protection
-`ExecuteLine` tracks recursion depth with `CLI.execDepth` counter. Maximum depth is set to 10 (configurable via `CLI.maxExecDepth`). This prevents infinite loops from circular `@exec:` references or aliases.
+`Execute` tracks recursion depth with `CLI.execDepth` counter. Maximum depth is set to 10 (configurable via `CLI.maxExecDepth`). This prevents infinite loops from circular `@exec:` references or aliases.
 
 ### Context Support (cli.go)
 
 **Phase 3 Feature**: Context-aware command execution for cancellation and timeout
 
 - **Methods**:
-  - `ExecuteLine(line, defs)` - Standard execution (uses background context)
-  - `ExecuteLineWithContext(ctx, line, defs)` - Context-aware execution
+  - `Execute(line, scope)` - Standard execution (uses background context)
+  - `ExecuteWithContext(ctx, line, scope)` - Context-aware execution
 
 - **Features**:
   - Command cancellation via context
@@ -606,7 +606,7 @@ The parser now uses `github.com/kballard/go-shellquote` for proper quote and esc
   // Execute with timeout
   ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
   defer cancel()
-  output, err := cli.ExecuteLineWithContext(ctx, "http slow-api.example.com", nil)
+  output, err := cli.ExecuteWithContext(ctx, "http slow-api.example.com", nil)
 
   // Execute with cancellation
   ctx, cancel := context.WithCancel(context.Background())
@@ -614,10 +614,10 @@ The parser now uses `github.com/kballard/go-shellquote` for proper quote and esc
     time.Sleep(5 * time.Second)
     cancel() // Cancel after 5 seconds
   }()
-  output, err := cli.ExecuteLineWithContext(ctx, "repeat 100 'sleep 1s'", nil)
+  output, err := cli.ExecuteWithContext(ctx, "repeat 100 'sleep 1s'", nil)
   ```
 
-**Design**: Maintains backward compatibility by wrapping `ExecuteLine` to call `ExecuteLineWithContext` with `context.Background()`. Cancellation is checked before each command and at each stage in a pipeline.
+**Design**: Maintains backward compatibility by wrapping `Execute` to call `ExecuteWithContext` with `context.Background()`. Cancellation is checked before each command and at each stage in a pipeline.
 
 ### Phase 2 Features (Advanced CLI Capabilities)
 
@@ -648,7 +648,7 @@ The parser now uses `github.com/kballard/go-shellquote` for proper quote and esc
   - Exits with 0 (true) or 1 (false)
 
 #### Notification System (notify.go + notifycmds.go)
-- **NotifyManager**: Cross-platform desktop notifications
+- **NotificationManager**: Cross-platform desktop notifications
   - Linux: `notify-send` with urgency levels (low, normal, critical)
   - macOS: `osascript` for system notifications
   - Windows: PowerShell toast notifications
@@ -756,13 +756,13 @@ When adding new commands:
 4. Register in your application's customizer function
 
 When working with token replacement:
-- Use `cli.ReplaceDefaults(cmd, defs, input)` to process tokens
-- Add custom token handlers via `cli.TokenReplacers` slice
+- Use `cli.ExpandCommand(cmd, defs, input)` to process tokens
+- Add custom token handlers via `cli.VariableExpanders` slice
 - Token names starting with `@` are reserved for the system
 
 When implementing script commands:
 - Use `LoadScript` to read and parse script files
-- Call `cli.ExecuteLine` to execute individual commands with scoped defaults
+- Call `cli.Execute` to execute individual commands with scoped defaults
 - Create scoped SafeMap for script arguments to prevent leakage
 - Handle multi-line scripts with `ReadLines` which processes backslash continuations
 

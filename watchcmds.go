@@ -9,7 +9,7 @@ import (
 )
 
 // AddWatchCommand adds a watch command that repeatedly executes a command
-func AddWatchCommand(cli *CLI) func(cmd *cobra.Command) {
+func AddWatchCommand(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		var interval time.Duration
 		var count int
@@ -33,7 +33,7 @@ Examples:
 				iteration := 0
 
 				// Print header
-				cmd.Println(cli.InfoString(fmt.Sprintf("Every %s: %s", interval, command)))
+				cmd.Println(fmt.Sprintf("Every %s: %s", interval, command))
 				cmd.Println()
 
 				// Main watch loop
@@ -46,13 +46,13 @@ Examples:
 					}
 
 					// Print iteration info
-					cmd.Println(cli.InfoString(fmt.Sprintf("Iteration %d at %s:", iteration, time.Now().Format("15:04:05"))))
+					cmd.Println(fmt.Sprintf("Iteration %d at %s:", iteration, time.Now().Format("15:04:05")))
 					cmd.Println(strings.Repeat("-", 60))
 
 					// Execute command
-					output, err := cli.ExecuteLine(command, nil)
+					output, err := exec.Execute(command, nil)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 					} else if output != "" {
 						cmd.Print(output)
 						if !strings.HasSuffix(output, "\n") {
@@ -70,7 +70,7 @@ Examples:
 				}
 
 				cmd.Println()
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Watch completed after %d iterations", iteration)))
+				cmd.Println(fmt.Sprintf("Watch completed after %d iterations", iteration))
 			},
 			PostRun: func(cmd *cobra.Command, args []string) {
 				ResetAllFlags(cmd)

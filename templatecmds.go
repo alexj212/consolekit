@@ -8,7 +8,7 @@ import (
 )
 
 // AddTemplateCommands adds template management commands to the CLI
-func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddTemplateCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		var templateCmd = &cobra.Command{
 			Use:   "template",
@@ -22,23 +22,23 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Short: "List available templates",
 			Long:  "List all available templates from embedded FS and templates directory",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
-				templates, err := cli.TemplateManager.ListTemplates()
+				templates, err := exec.TemplateManager.ListTemplates()
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to list templates: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to list templates: %v", err))
 					return
 				}
 
 				if len(templates) == 0 {
-					cmd.Println(cli.InfoString("No templates found"))
+					cmd.Println(fmt.Sprintf("No templates found"))
 					return
 				}
 
-				cmd.Println(cli.InfoString("Available templates:"))
+				cmd.Println(fmt.Sprintf("Available templates:"))
 				for _, tmpl := range templates {
 					cmd.Printf("  - %s\n", tmpl)
 				}
@@ -52,15 +52,15 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Long:  "Display the raw content of a template",
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
 				name := args[0]
-				content, err := cli.TemplateManager.GetTemplateContent(name)
+				content, err := exec.TemplateManager.GetTemplateContent(name)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to get template: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to get template: %v", err))
 					return
 				}
 
@@ -75,8 +75,8 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Long:  "Execute a template with variable substitution and run the resulting script",
 			Args:  cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
@@ -85,14 +85,14 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 				// Parse variables
 				vars, err := ParseVariables(args[1:])
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to parse variables: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to parse variables: %v", err))
 					return
 				}
 
 				// Execute template
-				script, err := cli.TemplateManager.ExecuteTemplate(name, vars)
+				script, err := exec.TemplateManager.ExecuteTemplate(name, vars)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to execute template: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to execute template: %v", err))
 					return
 				}
 
@@ -104,9 +104,9 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 						continue
 					}
 
-					output, err := cli.ExecuteLine(line, nil)
+					output, err := exec.Execute(line, nil)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error executing line '%s': %v", line, err)))
+						cmd.PrintErrln(fmt.Sprintf("Error executing line '%s': %v", line, err))
 						return
 					}
 
@@ -124,8 +124,8 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Long:  "Render a template with variable substitution and display the result",
 			Args:  cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
@@ -134,14 +134,14 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 				// Parse variables
 				vars, err := ParseVariables(args[1:])
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to parse variables: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to parse variables: %v", err))
 					return
 				}
 
 				// Execute template
-				script, err := cli.TemplateManager.ExecuteTemplate(name, vars)
+				script, err := exec.TemplateManager.ExecuteTemplate(name, vars)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to execute template: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to execute template: %v", err))
 					return
 				}
 
@@ -156,20 +156,20 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Long:  "Create a new template interactively or from stdin",
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
 				name := args[0]
 
-				cmd.Println(cli.InfoString("Enter template content (end with Ctrl+D on Unix or Ctrl+Z on Windows):"))
+				cmd.Println(fmt.Sprintf("Enter template content (end with Ctrl+D on Unix or Ctrl+Z on Windows):"))
 
 				// Read from stdin
 				var content strings.Builder
 				var line string
 				for {
-					line = cli.Prompt("")
+					line = exec.Prompt("")
 					if line == "" {
 						break
 					}
@@ -177,12 +177,12 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 					content.WriteString("\n")
 				}
 
-				if err := cli.TemplateManager.SaveTemplate(name, content.String()); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to save template: %v", err)))
+				if err := exec.TemplateManager.SaveTemplate(name, content.String()); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to save template: %v", err))
 					return
 				}
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Template '%s' created successfully", name)))
+				cmd.Println(fmt.Sprintf("Template '%s' created successfully", name))
 			},
 		}
 
@@ -193,24 +193,24 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Long:  "Delete a template from the file system",
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
 				name := args[0]
 
-				if !cli.Confirm(fmt.Sprintf("Delete template '%s'?", name)) {
-					cmd.Println(cli.InfoString("Cancelled"))
+				if !exec.Confirm(fmt.Sprintf("Delete template '%s'?", name)) {
+					cmd.Println(fmt.Sprintf("Cancelled"))
 					return
 				}
 
-				if err := cli.TemplateManager.DeleteTemplate(name); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to delete template: %v", err)))
+				if err := exec.TemplateManager.DeleteTemplate(name); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to delete template: %v", err))
 					return
 				}
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Template '%s' deleted successfully", name)))
+				cmd.Println(fmt.Sprintf("Template '%s' deleted successfully", name))
 			},
 		}
 
@@ -220,13 +220,13 @@ func AddTemplateCommands(cli *CLI) func(cmd *cobra.Command) {
 			Short: "Clear template cache",
 			Long:  "Clear the in-memory template cache to force reload from disk",
 			Run: func(cmd *cobra.Command, args []string) {
-				if cli.TemplateManager == nil {
-					cmd.PrintErrln(cli.ErrorString("Template manager not initialized"))
+				if exec.TemplateManager == nil {
+					cmd.PrintErrln(fmt.Sprintf("Template manager not initialized"))
 					return
 				}
 
-				cli.TemplateManager.ClearCache()
-				cmd.Println(cli.SuccessString("Template cache cleared"))
+				exec.TemplateManager.ClearCache()
+				cmd.Println(fmt.Sprintf("Template cache cleared"))
 			},
 		}
 

@@ -4,11 +4,11 @@ This guide explains how to use ConsoleKit's built-in Model Context Protocol (MCP
 
 ## Overview
 
-ConsoleKit includes MCP server support that exposes all CLI commands as MCP tools via stdio. This allows external applications (like Claude Desktop, IDEs, or other MCP clients) to discover and execute your CLI commands remotely.
+ConsoleKit includes MCP server support that exposes all CommandExecutor commands as MCP tools via stdio. This allows external applications (like Claude Desktop, IDEs, or other MCP clients) to discover and execute your CommandExecutor commands remotely.
 
 ## Features
 
-- **Automatic Tool Discovery**: All registered CLI commands are automatically exposed as MCP tools
+- **Automatic Tool Discovery**: All registered CommandExecutor commands are automatically exposed as MCP tools
 - **JSON-RPC 2.0**: Standards-compliant protocol over stdio
 - **Flag Support**: Command flags are converted to tool input parameters
 - **Resource Support**: Templates and scripts are exposed as MCP resources
@@ -16,13 +16,13 @@ ConsoleKit includes MCP server support that exposes all CLI commands as MCP tool
 
 ## Quick Start
 
-### 1. Add MCP Commands to Your CLI
+### 1. Add MCP Commands to Your CommandExecutor
 
-MCP commands are automatically included when you call `AddAll()`:
+MCP commands are automatically included when you call `AddBuiltinCommands()`:
 
 ```go
-cli, err := consolekit.NewCLI("myapp", func(cli *consolekit.CLI) error {
-    cli.AddAll()  // Includes MCP commands
+cli, err := consolekit.NewCommandExecutor("myapp", func(cli *consolekit.CommandExecutor) error {
+    cli.AddBuiltinCommands()  // Includes MCP commands
     return nil
 })
 
@@ -78,7 +78,7 @@ Endpoints:
 
 ## Claude Desktop Integration
 
-To integrate your CLI with Claude Desktop, add a configuration entry to Claude Desktop's MCP settings:
+To integrate your CommandExecutor with Claude Desktop, add a configuration entry to Claude Desktop's MCP settings:
 
 ### Configuration Location
 
@@ -106,7 +106,7 @@ To integrate your CLI with Claude Desktop, add a configuration entry to Claude D
 After adding the configuration:
 
 1. Restart Claude Desktop
-2. In a new chat, Claude will have access to your CLI commands
+2. In a new chat, Claude will have access to your CommandExecutor commands
 3. Ask Claude to list available tools to verify the connection
 
 Example prompt: "What tools do you have access to from myapp?"
@@ -155,7 +155,7 @@ Establishes the MCP session and exchanges capabilities.
 ```
 
 #### `tools/list`
-Returns all available CLI commands as MCP tools.
+Returns all available CommandExecutor commands as MCP tools.
 
 **Request**:
 ```json
@@ -192,7 +192,7 @@ Returns all available CLI commands as MCP tools.
 ```
 
 #### `tools/call`
-Executes a CLI command and returns the output.
+Executes a CommandExecutor command and returns the output.
 
 **Request**:
 ```json
@@ -258,9 +258,9 @@ Returns available resources (templates, scripts, etc.).
 
 ## Command Mapping
 
-### CLI Commands → MCP Tools
+### CommandExecutor Commands → MCP Tools
 
-CLI commands are automatically mapped to MCP tools:
+CommandExecutor commands are automatically mapped to MCP tools:
 
 - **Command Name**: Becomes the tool name
 - **Short Description**: Becomes the tool description
@@ -269,7 +269,7 @@ CLI commands are automatically mapped to MCP tools:
 
 ### Example Mapping
 
-**CLI Command**:
+**CommandExecutor Command**:
 ```go
 &cobra.Command{
     Use:   "greet [name]",
@@ -394,7 +394,7 @@ if !*yesFlag && !cli.Confirm("Delete all data?") {
 
 ### Commands Not Appearing
 
-1. Ensure `AddMCPCommands` is called or `AddAll()` is used
+1. Ensure `AddMCPCommands` is called or `AddBuiltinCommands()` is used
 2. Check that commands have Run/RunE functions
 3. Verify commands are not hidden
 
@@ -406,7 +406,7 @@ if !*yesFlag && !cli.Confirm("Delete all data?") {
 
 ### Debugging
 
-Enable stderr logging in your CLI to see server messages:
+Enable stderr logging in your CommandExecutor to see server messages:
 
 ```go
 fmt.Fprintf(os.Stderr, "Debug: command executed\n")
@@ -437,8 +437,8 @@ cli.TemplateManager.ListTemplates()
 
 ### Security Considerations
 
-- **Access Control**: MCP exposes all CLI commands. Ensure your CLI has appropriate security measures.
-- **Input Validation**: Validate all command inputs as you would for direct CLI usage.
+- **Access Control**: MCP exposes all CommandExecutor commands. Ensure your CommandExecutor has appropriate security measures.
+- **Input Validation**: Validate all command inputs as you would for direct CommandExecutor usage.
 - **Secrets**: Avoid exposing sensitive data in command outputs or descriptions.
 - **Audit Logging**: Enable logging to track MCP command executions.
 
@@ -456,8 +456,8 @@ import (
 )
 
 func main() {
-    customizer := func(cli *consolekit.CLI) error {
-        cli.AddAll()
+    customizer := func(cli *consolekit.CommandExecutor) error {
+        cli.AddBuiltinCommands()
 
         // Add custom command
         cli.AddCommands(func(rootCmd *cobra.Command) {
@@ -473,7 +473,7 @@ func main() {
         return nil
     }
 
-    cli, err := consolekit.NewCLI("myapp", customizer)
+    cli, err := consolekit.NewCommandExecutor("myapp", customizer)
     if err != nil {
         fmt.Printf("Error: %v\n", err)
         return

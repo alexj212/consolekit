@@ -116,9 +116,9 @@ tools: ## install dependent tools for code analysis
 ##
 ####################################################################################################################
 
-all: simple ## build binaries in bin dir and run tests
+all: simple ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
 
-binaries: simple ## build binaries in bin dir
+binaries: simple ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
 
 create_dir:
 	@mkdir -p ./build
@@ -136,10 +136,34 @@ check_prereq: create_dir
 clean: ## clean all binaries in bin dir
 	@rm -rf ./build/
 
-simple: build_info create_dir## build mitm binary in bin dir
+simple: build_info create_dir ## build simple example binary
 	@echo "build simple"
 	CGO_ENABLED=0 go build -o ./build/simple -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/simple
 	@echo ''
+
+ssh_server: build_info create_dir ## build ssh_server example binary
+	@echo "build ssh_server"
+	CGO_ENABLED=0 go build -o ./build/ssh_server -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/ssh_server
+	@echo ''
+
+multi_transport: build_info create_dir ## build multi_transport example binary
+	@echo "build multi_transport"
+	CGO_ENABLED=0 go build -o ./build/multi_transport -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/multi_transport
+	@echo ''
+
+production_server: build_info create_dir ## build production_server example binary
+	@echo "build production_server"
+	CGO_ENABLED=0 go build -o ./build/production_server -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/production_server
+	@echo ''
+
+rest_api: build_info create_dir ## build rest_api example binary
+	@echo "build rest_api"
+	CGO_ENABLED=0 go build -o ./build/rest_api -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/rest_api
+	@echo ''
+
+tailscale_http: build_info create_dir ## build tailscale_http example binary
+	@echo "build tailscale_http"
+	CGO_ENABLED=0 go build -o ./build/tailscale_http -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/tailscale_http
 	@echo ''
 
 

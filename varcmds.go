@@ -11,7 +11,7 @@ import (
 )
 
 // AddVariableCommands adds enhanced variable management commands
-func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddVariableCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		// let command - set variables with enhanced features
@@ -46,7 +46,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 					if strings.HasPrefix(value, "$(") && strings.HasSuffix(value, ")") {
 						// Command substitution
 						cmdToExec := value[2 : len(value)-1]
-						result, err := cli.ExecuteLine(cmdToExec, nil)
+						result, err := exec.Execute(cmdToExec, nil)
 						if err != nil {
 							cmd.PrintErrf("Error executing command '%s': %v\n", cmdToExec, err)
 							continue
@@ -56,7 +56,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 
 					// Store with @ prefix for consistency with token system
 					varName := "@" + name
-					cli.Defaults.Set(varName, value)
+					exec.Variables.Set(varName, value)
 					cmd.Printf("%s = %s\n", name, value)
 				}
 			},
@@ -70,8 +70,8 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 			Run: func(cmd *cobra.Command, args []string) {
 				for _, name := range args {
 					varName := "@" + name
-					if _, ok := cli.Defaults.Get(varName); ok {
-						cli.Defaults.Delete(varName)
+					if _, ok := exec.Variables.Get(varName); ok {
+						exec.Variables.Delete(varName)
 						cmd.Printf("Removed variable: %s\n", name)
 					} else {
 						cmd.Printf("Variable not found: %s\n", name)
@@ -89,18 +89,18 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 				jsonFormat, _ := cmd.Flags().GetBool("json")
 
 				if jsonFormat {
-					exportJSON(cmd, cli)
+					exportJSON(cmd, exec)
 					return
 				}
 
 				if export {
-					exportShell(cmd, cli)
+					exportShell(cmd, exec)
 					return
 				}
 
 				// Default: pretty print
 				vars := make(map[string]string)
-				cli.Defaults.ForEach(func(k, v string) bool {
+				exec.Variables.ForEach(func(k, v string) bool {
 					if strings.HasPrefix(k, "@") && !strings.HasPrefix(k, "@arg") && !strings.HasPrefix(k, "@env:") && !strings.HasPrefix(k, "@exec:") {
 						// Remove @ prefix for display
 						varName := strings.TrimPrefix(k, "@")
@@ -118,7 +118,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 				cmd.Println(strings.Repeat("-", 60))
 
 				// Sort and display
-				cli.Defaults.SortedForEach(func(k, v string) bool {
+				exec.Variables.SortedForEach(func(k, v string) bool {
 					if strings.HasPrefix(k, "@") && !strings.HasPrefix(k, "@arg") && !strings.HasPrefix(k, "@env:") && !strings.HasPrefix(k, "@exec:") {
 						varName := strings.TrimPrefix(k, "@")
 						// Truncate long values
@@ -156,7 +156,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				varName := "@" + name
 				currentValue := "0"
-				if val, ok := cli.Defaults.Get(varName); ok {
+				if val, ok := exec.Variables.Get(varName); ok {
 					currentValue = val
 				}
 
@@ -167,7 +167,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				newValue := current + amount
-				cli.Defaults.Set(varName, strconv.Itoa(newValue))
+				exec.Variables.Set(varName, strconv.Itoa(newValue))
 				cmd.Printf("%s = %d\n", name, newValue)
 			},
 		}
@@ -193,7 +193,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				varName := "@" + name
 				currentValue := "0"
-				if val, ok := cli.Defaults.Get(varName); ok {
+				if val, ok := exec.Variables.Get(varName); ok {
 					currentValue = val
 				}
 
@@ -204,7 +204,7 @@ func AddVariableCommands(cli *CLI) func(cmd *cobra.Command) {
 				}
 
 				newValue := current - amount
-				cli.Defaults.Set(varName, strconv.Itoa(newValue))
+				exec.Variables.Set(varName, strconv.Itoa(newValue))
 				cmd.Printf("%s = %d\n", name, newValue)
 			},
 		}
@@ -227,9 +227,9 @@ func isValidVarName(name string) bool {
 }
 
 // exportShell exports variables as shell script
-func exportShell(cmd *cobra.Command, cli *CLI) {
+func exportShell(cmd *cobra.Command, exec *CommandExecutor) {
 	cmd.Println("# Variable export")
-	cli.Defaults.SortedForEach(func(k, v string) bool {
+	exec.Variables.SortedForEach(func(k, v string) bool {
 		if strings.HasPrefix(k, "@") && !strings.HasPrefix(k, "@arg") && !strings.HasPrefix(k, "@env:") && !strings.HasPrefix(k, "@exec:") {
 			varName := strings.TrimPrefix(k, "@")
 			// Escape quotes in value
@@ -241,9 +241,9 @@ func exportShell(cmd *cobra.Command, cli *CLI) {
 }
 
 // exportJSON exports variables as JSON
-func exportJSON(cmd *cobra.Command, cli *CLI) {
+func exportJSON(cmd *cobra.Command, exec *CommandExecutor) {
 	vars := make(map[string]string)
-	cli.Defaults.ForEach(func(k, v string) bool {
+	exec.Variables.ForEach(func(k, v string) bool {
 		if strings.HasPrefix(k, "@") && !strings.HasPrefix(k, "@arg") && !strings.HasPrefix(k, "@env:") && !strings.HasPrefix(k, "@exec:") {
 			varName := strings.TrimPrefix(k, "@")
 			vars[varName] = v

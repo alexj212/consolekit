@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>ConsoleKit Web Terminal</title>
+    <link rel="stylesheet" href="/node_modules/xterm/css/xterm.css" />
+    <style>
+        body, html {
+            margin: 0;
+            height: 100%;
+            background-color: #000;
+            font-family: monospace;
+            color: #00ff00;
+        }
+
+        #login-form, #terminal-wrapper {
+            height: 100%;
+            width: 100%;
+            display: none;
+        }
+
+        #login-form {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #login-form input, #login-form button {
+            margin: 8px;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        #terminal-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #terminal {
+            flex-grow: 1;
+        }
+
+        #logout-bar {
+            background: #111;
+            color: #0f0;
+            padding: 8px 16px;
+            text-align: right;
+        }
+
+        #logout-bar button {
+            background: #222;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+
+        #error {
+            margin-top: 10px;
+            color: red;
+            font-size: 14px;
+            min-height: 1.5em;
+        }
+    </style>
+</head>
+<body>
+<div id="login-form">
+    <h2>ConsoleKit Web Terminal</h2>
+    <input type="text" id="username" placeholder="Username" />
+    <input type="password" id="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <div id="error"></div>
+</div>
+
+<div id="terminal-wrapper">
+    <div id="logout-bar">
+        <button onclick="logout()">Logout</button>
+    </div>
+    <div id="terminal"></div>
+</div>
+
+<script src="/node_modules/xterm/lib/xterm.js"></script>
+<script src="/node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+<script src="/node_modules/xterm-addon-web-links/lib/xterm-addon-web-links.js"></script>
+<script src="./index.js"></script>
+</body>
+</html>

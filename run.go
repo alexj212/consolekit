@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
+func AddRun(exec *CommandExecutor, scripts embed.FS) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
@@ -40,7 +40,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 					return
 				}
 
-				cmd.Printf("%s\n", cli.InfoString("Listing embedded files in: @%s", embedPath))
+				cmd.Printf("%s\n", fmt.Sprintf("Listing embedded files in: @%s", embedPath))
 				cmd.Printf("%s\n", strings.Repeat("-", 80))
 
 				dirCount := 0
@@ -53,7 +53,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 						if embedPath != "." {
 							dirPath = "@" + embedPath + "/" + entry.Name() + "/"
 						}
-						cmd.Printf("%s  %s\n", cli.InfoString("[DIR]"), cli.InfoString(dirPath))
+						cmd.Printf("%s  %s\n", "[DIR]", dirPath)
 						dirCount++
 					} else {
 						// Get file info for size and timestamp
@@ -97,7 +97,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 					absPath = dir
 				}
 
-				cmd.Printf("%s\n", cli.InfoString("File information: %s", absPath))
+				cmd.Printf("%s\n", fmt.Sprintf("File information: %s", absPath))
 				cmd.Printf("%s\n", strings.Repeat("-", 80))
 				cmd.Printf("%s  %10d bytes  %-19s  %s\n",
 					"[FILE]",
@@ -109,7 +109,7 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 			}
 
 			// List regular filesystem directory contents
-			cmd.Printf("%s\n", cli.InfoString("Listing files in: %s", dir))
+			cmd.Printf("%s\n", fmt.Sprintf("Listing files in: %s", dir))
 			files, err := ListFiles(dir, "")
 			if err != nil {
 				cmd.Printf("Error listing files: %v\n", err)
@@ -125,9 +125,9 @@ func AddRun(cli *CLI, scripts embed.FS) func(cmd *cobra.Command) {
 			for _, file := range files {
 				if file.IsDir {
 					cmd.Printf("%s  %s  %s\n",
-						cli.InfoString("[DIR]"),
+						"[DIR]",
 						file.Timestamp.Format("2006-01-02 15:04:05"),
-						cli.InfoString(file.FullPath+"/"))
+						file.FullPath+"/")
 					dirCount++
 				} else {
 					cmd.Printf("%s  %10d bytes  %-19s  %s\n",
@@ -177,7 +177,7 @@ Full paths are displayed for all entries.`,
 
 			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Print(cli.ErrorString("error loading file: %s, %s\n", args[0], err))
+				cmd.Print(fmt.Sprintf("error loading file: %s, %s\n", args[0], err))
 				return
 			}
 
@@ -216,10 +216,10 @@ Full paths are displayed for all entries.`,
 				firstToken := tokens[0]
 				if commandExists(firstToken) {
 					// Valid command - print in green
-					cmd.Printf("%s\n", cli.SuccessString("%s", cmdLine))
+					cmd.Printf("%s\n", fmt.Sprintf("%s", cmdLine))
 				} else {
 					// Invalid command - print in red
-					cmd.Printf("%s\n", cli.ErrorString("%s", cmdLine))
+					cmd.Printf("%s\n", fmt.Sprintf("%s", cmdLine))
 				}
 			}
 		}
@@ -258,26 +258,26 @@ Full paths are displayed for all entries.`,
 
 			cmds, err := LoadScript(scripts, cmd, args[0])
 			if err != nil {
-				cmd.Print(cli.ErrorString("error loading file %s, %s\n", args[0], err))
+				cmd.Print(fmt.Sprintf("error loading file %s, %s\n", args[0], err))
 				return
 			}
 
 			spawn, err := cmd.Flags().GetBool("spawn")
 			if err != nil {
-				cmd.Print(cli.ErrorString("unable to get flag spawn, %v\n", err))
+				cmd.Print(fmt.Sprintf("unable to get flag spawn, %v\n", err))
 				return
 			}
 
 			quiet, err := cmd.Flags().GetBool("quiet")
 			if err != nil {
-				cmd.Print(cli.ErrorString("unable to get flag quiet, %v\n", err))
+				cmd.Print(fmt.Sprintf("unable to get flag quiet, %v\n", err))
 				return
 			}
 
 			doExec := func() {
 				startTime := time.Now()
 				if !quiet {
-					cmd.Printf("%s\n", cli.InfoString("▶ Executing file: %s - %d commands", args[0], len(cmds)))
+					cmd.Printf("%s\n", fmt.Sprintf("▶ Executing file: %s - %d commands", args[0], len(cmds)))
 				}
 
 				execCount := 0
@@ -288,16 +288,16 @@ Full paths are displayed for all entries.`,
 
 					// Show the command being executed with arrow prefix (unless quiet)
 					if !quiet {
-						cmd.Printf("%s\n", cli.InfoString("  → %s", strings.TrimSpace(cmdLine)))
+						cmd.Printf("%s\n", fmt.Sprintf("  → %s", strings.TrimSpace(cmdLine)))
 					}
 					
-					res, err := cli.ExecuteLine(cmdLine, scriptDefs)
+					res, err := exec.Execute(cmdLine, scriptDefs)
 					if res != "" {
 						cmd.Printf("%s\n", res)
 					}
 					if err != nil {
 						if !quiet {
-							cmd.Printf("%s\n", cli.ErrorString("  ✗ Error executing command: %s", err))
+							cmd.Printf("%s\n", fmt.Sprintf("  ✗ Error executing command: %s", err))
 						}
 						break
 					}
@@ -308,9 +308,9 @@ Full paths are displayed for all entries.`,
 					elapsed := time.Since(startTime)
 					timeSince := HumanizeDuration(elapsed, false)
 					if execCount == len(cmds) {
-						cmd.Printf("%s\n", cli.SuccessString("✓ Script '%s' completed successfully - %d commands in %s", args[0], execCount, timeSince))
+						cmd.Printf("%s\n", fmt.Sprintf("✓ Script '%s' completed successfully - %d commands in %s", args[0], execCount, timeSince))
 					} else {
-						cmd.Printf("%s\n", cli.WarningString("⚠ Script '%s' partially completed - %d/%d commands in %s", args[0], execCount, len(cmds), timeSince))
+						cmd.Printf("%s\n", fmt.Sprintf("⚠ Script '%s' partially completed - %d/%d commands in %s", args[0], execCount, len(cmds), timeSince))
 					}
 				}
 			}
@@ -347,13 +347,13 @@ Arguments can be passed after the filename and referenced in the script as @arg0
 				cmdLine := strings.Join(args, " ")
 				cmdLineArgs, err := shellquote.Split(cmdLine)
 				if err != nil {
-					cmd.Print(cli.ErrorString("error splitting cmd `%s`, %s\n", cmdLine, err))
+					cmd.Print(fmt.Sprintf("error splitting cmd `%s`, %s\n", cmdLine, err))
 					return
 				}
 				cmd.Printf("spawn cmd: %s | %s\n", rootCmd.Use, cmdLine)
 				rootCmd.SetArgs(cmdLineArgs)
 				if err := rootCmd.Execute(); err != nil {
-					cmd.Print(cli.ErrorString("error %s executing command: %s, %s\n", rootCmd.Name(), cmdLine, err))
+					cmd.Print(fmt.Sprintf("error %s executing command: %s, %s\n", rootCmd.Name(), cmdLine, err))
 					return
 				}
 			}()

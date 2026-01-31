@@ -110,7 +110,7 @@ type ResourcesListResult struct {
 
 // MCPServer is the MCP protocol server
 type MCPServer struct {
-	cli        *CLI
+	cli        *CommandExecutor
 	appName    string
 	appVersion string
 	reader     *bufio.Reader
@@ -118,7 +118,7 @@ type MCPServer struct {
 }
 
 // NewMCPServer creates a new MCP server
-func NewMCPServer(cli *CLI, appName, appVersion string) *MCPServer {
+func NewMCPServer(cli *CommandExecutor, appName, appVersion string) *MCPServer {
 	return &MCPServer{
 		cli:        cli,
 		appName:    appName,
@@ -212,7 +212,7 @@ func (s *MCPServer) handleToolsList(req *JSONRPCRequest) *JSONRPCResponse {
 	tools := []Tool{}
 
 	// Get the root command
-	rootCmd := s.cli.BuildRootCmd()()
+	rootCmd := s.cli.RootCmd()
 
 	// Recursively collect all commands
 	s.collectCommands(rootCmd, "", &tools)
@@ -339,7 +339,7 @@ func (s *MCPServer) handleToolsCall(ctx context.Context, req *JSONRPCRequest) *J
 	}
 
 	// Execute the command
-	output, err := s.cli.ExecuteLineWithContext(ctx, cmdLine, nil)
+	output, err := s.cli.ExecuteWithContext(ctx, cmdLine, nil)
 
 	result := CallToolResult{
 		Content: []ContentItem{

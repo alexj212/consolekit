@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 const ClsSeq = "\033[H\033[2J"
 
-func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
+func AddBaseCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 		var clsCmdFunc = func(cmd *cobra.Command, args []string) {
@@ -35,7 +36,7 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 			if len(args) > 0 {
 				code, _ = strconv.Atoi(args[0])
 			}
-			cli.Exit("exit cmd", code)
+			os.Exit(code)
 
 		} //exitCmdFunc
 		var exitCmd = &cobra.Command{
@@ -51,15 +52,15 @@ func AddBaseCmds(cli *CLI) func(cmd *cobra.Command) {
 	}
 }
 
-func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
+func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
 		var printCmdFunc = func(cmd *cobra.Command, args []string) {
 			line := strings.Join(args, " ")
 
-			// Use ReplaceTokens instead of ReplaceDefaults to avoid alias expansion in arguments
-			line = cli.ReplaceTokens(cmd, nil, line)
+			// Use ExpandVariables instead of ExpandCommand to avoid alias expansion in arguments
+			line = exec.ExpandVariables(cmd, nil, line)
 
 			cmd.Printf("%s\n", line)
 		}
@@ -135,7 +136,7 @@ func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
 				// For longer sleeps, show progress updates
 				startTime := time.Now()
 				endTime := startTime.Add(time.Duration(delay) * time.Second)
-				cmd.Printf("%s\n", cli.InfoString("⏱  Sleeping for %d seconds (until %s)", delay, endTime.Format("15:04:05")))
+				cmd.Printf("%s\n", fmt.Sprintf("⏱  Sleeping for %d seconds (until %s)", delay, endTime.Format("15:04:05")))
 				
 				// Determine update interval based on total duration
 				updateInterval := time.Second
@@ -158,13 +159,13 @@ func AddScriptingCmds(cli *CLI) func(cmd *cobra.Command) {
 					select {
 					case <-done:
 						elapsed := time.Since(startTime)
-						cmd.Printf("%s\n", cli.SuccessString("✓ Sleep completed - waited %s", HumanizeDuration(elapsed, false)))
+						cmd.Printf("%s\n", fmt.Sprintf("✓ Sleep completed - waited %s", HumanizeDuration(elapsed, false)))
 						return
 					case <-ticker.C:
 						elapsed := time.Since(startTime)
 						remaining := time.Until(endTime)
 						percentage := int((float64(elapsed) / float64(delay*int(time.Second))) * 100)
-						cmd.Printf("%s\n", cli.InfoString("  ⏳ Progress: %s elapsed, %s remaining (%d%%)", 
+						cmd.Printf("%s\n", fmt.Sprintf("  ⏳ Progress: %s elapsed, %s remaining (%d%%)", 
 							HumanizeDuration(elapsed, false),
 							HumanizeDuration(remaining, false),
 							percentage))
@@ -244,7 +245,7 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 					i := 0
 					for count == -1 || i < count {
 
-						res, err := cli.ExecuteLine(cmdLine, nil)
+						res, err := exec.Execute(cmdLine, nil)
 						if err != nil {
 							cmd.Printf("Error executing command: %s err: %v\n", cmdLine, err)
 							continue
@@ -317,8 +318,8 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			Run: func(cmd *cobra.Command, args []string) {
 
 				if len(args) == 0 {
-					cmd.Printf("defaults: %d\n", cli.Defaults.Len())
-					cli.Defaults.ForEach(func(s string, s2 string) bool {
+					cmd.Printf("defaults: %d\n", exec.Variables.Len())
+					exec.Variables.ForEach(func(s string, s2 string) bool {
 						cmd.Printf("    %-20s %s\n", s, s2)
 						return false
 					})
@@ -326,7 +327,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				}
 
 				if len(args) == 1 {
-					val, ok := cli.Defaults.Get(args[0])
+					val, ok := exec.Variables.Get(args[0])
 					if !ok {
 						cmd.Printf("default not found: %s\n", args[0])
 						return
@@ -343,15 +344,15 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				key := args[0]
 				value := args[1]
 
-				// Use ReplaceTokens instead of ReplaceDefaults to avoid alias expansion
-				value = cli.ReplaceTokens(cmd, nil, value)
+				// Use ExpandVariables instead of ExpandCommand to avoid alias expansion
+				value = exec.ExpandVariables(cmd, nil, value)
 
 				key = fmt.Sprintf("@%s", key)
 				overwrite, _ := cmd.Flags().GetBool("overwrite")
 				if overwrite {
 					cmd.Printf("overwriting default: %s\n", key)
 				} else {
-					_, ok := cli.Defaults.Get(key)
+					_, ok := exec.Variables.Get(key)
 					if ok {
 						cmd.Printf("default already set key: %s\n", key)
 						return
@@ -359,7 +360,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 					cmd.Printf("setting default: %s\n", key)
 				}
 
-				cli.Defaults.Set(key, value)
+				exec.Variables.Set(key, value)
 			},
 		}
 
@@ -372,7 +373,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 			if iff && ifTrue != "" {
 				cmd.Printf("Condition true (%s == %s), running: `%s`\n", args[0], args[1], ifTrue)
-				res, err := cli.ExecuteLine(ifTrue, nil)
+				res, err := exec.Execute(ifTrue, nil)
 				if err != nil {
 					cmd.Printf("Error executing command: %s err: %v\n", ifTrue, err)
 					return
@@ -385,7 +386,7 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 
 			if !iff && ifFalse != "" {
 				cmd.Printf("Condition false (%s != %s), running: `%s`\n", args[0], args[1], ifFalse)
-				res, err := cli.ExecuteLine(ifFalse, nil)
+				res, err := exec.Execute(ifFalse, nil)
 				if err != nil {
 					cmd.Printf("Error executing command: %s err: %v\n", ifFalse, err)
 					return

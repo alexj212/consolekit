@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ConsoleKit Web Service</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
+<header class="bg-white shadow p-4 text-center">
+    <h1 class="text-2xl font-semibold">ConsoleKit Web Service</h1>
+</header>
+
+<main class="flex-grow p-6 max-w-3xl mx-auto">
+    <p class="text-lg mb-4">
+        Welcome to ConsoleKit Web Service. This server provides HTTP and WebSocket access to ConsoleKit commands.
+    </p>
+
+    <div class="space-y-4">
+        <div class="border p-4 rounded">
+            <h2 class="text-xl font-semibold mb-2">Web Terminal</h2>
+            <p class="mb-2">Access the interactive web-based REPL terminal:</p>
+            <a href="./admin" class="text-blue-600 hover:underline">Open Terminal</a>
+        </div>
+
+        <div class="border p-4 rounded">
+            <h2 class="text-xl font-semibold mb-2">API Endpoints</h2>
+            <ul class="list-disc list-inside space-y-1">
+                <li><code>POST /login</code> - Authenticate and create session</li>
+                <li><code>POST /logout</code> - Logout and clear session</li>
+                <li><code>GET /repl</code> - WebSocket REPL connection</li>
+            </ul>
+        </div>
+    </div>
+</main>
+
+<footer class="bg-white shadow p-4 text-center text-sm text-gray-600">
+    Powered by ConsoleKit
+</footer>
+</body>
+</html>

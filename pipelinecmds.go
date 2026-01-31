@@ -9,7 +9,7 @@ import (
 )
 
 // AddPipelineCommands adds pipeline enhancement commands
-func AddPipelineCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddPipelineCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// tee command - read from stdin and write to both stdout and file
 		var teeAppend bool
@@ -49,7 +49,7 @@ Examples:
 					}
 
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to open %s: %v", filename, err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to open %s: %v", filename, err))
 						return
 					}
 
@@ -63,7 +63,7 @@ Examples:
 				// Copy stdin to all writers
 				_, err := io.Copy(multiWriter, cmd.InOrStdin())
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to copy: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Failed to copy: %v", err))
 					return
 				}
 			},

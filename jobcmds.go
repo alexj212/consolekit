@@ -11,7 +11,7 @@ import (
 )
 
 // AddJobCommands adds job management commands to the CLI
-func AddJobCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddJobCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		// jobs command - list all jobs
@@ -22,7 +22,7 @@ func AddJobCommands(cli *CLI) func(cmd *cobra.Command) {
 				verbose, _ := cmd.Flags().GetBool("verbose")
 				showAll, _ := cmd.Flags().GetBool("all")
 
-				jobs := cli.JobManager.List()
+				jobs := exec.JobManager.List()
 
 				// Sort by ID
 				sort.Slice(jobs, func(i, j int) bool {
@@ -74,9 +74,9 @@ func AddJobCommands(cli *CLI) func(cmd *cobra.Command) {
 
 					statusStr := string(status)
 					if status == JobRunning {
-						statusStr = cli.InfoString("[%s]", status)
+						statusStr = fmt.Sprintf("[%s]", status)
 					} else if status == JobFailed {
-						statusStr = cli.ErrorString("[%s]", status)
+						statusStr = fmt.Sprintf("[%s]", status)
 					} else {
 						statusStr = fmt.Sprintf("[%s]", status)
 					}
@@ -136,7 +136,7 @@ Actions:
 					return
 				}
 
-				job, ok := cli.JobManager.Get(id)
+				job, ok := exec.JobManager.Get(id)
 				if !ok {
 					cmd.PrintErrf("Job %d not found\n", id)
 					return
@@ -151,11 +151,11 @@ Actions:
 				switch action {
 				case "":
 					// Show job details
-					showJobDetails(cmd, cli, job)
+					showJobDetails(cmd, exec, job)
 
 				case "logs":
 					// Show full output
-					logs, err := cli.JobManager.Logs(id)
+					logs, err := exec.JobManager.Logs(id)
 					if err != nil {
 						cmd.PrintErrf("Error getting logs: %v\n", err)
 						return
@@ -168,7 +168,7 @@ Actions:
 
 				case "kill":
 					// Kill the job
-					err := cli.JobManager.Kill(id)
+					err := exec.JobManager.Kill(id)
 					if err != nil {
 						cmd.PrintErrf("Error killing job: %v\n", err)
 						return
@@ -178,7 +178,7 @@ Actions:
 				case "wait":
 					// Wait for job to complete
 					cmd.Printf("Waiting for job %d...\n", id)
-					err := cli.JobManager.Wait(id)
+					err := exec.JobManager.Wait(id)
 					if err != nil {
 						cmd.PrintErrf("Job %d failed: %v\n", id, err)
 						return
@@ -197,7 +197,7 @@ Actions:
 			Use:   "killall",
 			Short: "Kill all running background jobs",
 			Run: func(cmd *cobra.Command, args []string) {
-				errors := cli.JobManager.KillAll()
+				errors := exec.JobManager.KillAll()
 				if len(errors) > 0 {
 					cmd.Println("Errors killing some jobs:")
 					for _, err := range errors {
@@ -214,7 +214,7 @@ Actions:
 			Use:   "jobclean",
 			Short: "Remove completed/failed jobs from the list",
 			Run: func(cmd *cobra.Command, args []string) {
-				removed := cli.JobManager.Clean()
+				removed := exec.JobManager.Clean()
 				cmd.Printf("Removed %d completed/failed job(s)\n", removed)
 			},
 		}
@@ -226,7 +226,7 @@ Actions:
 	}
 }
 
-func showJobDetails(cmd *cobra.Command, cli *CLI, job *Job) {
+func showJobDetails(cmd *cobra.Command, exec *CommandExecutor, job *Job) {
 	job.mu.RLock()
 	defer job.mu.RUnlock()
 
@@ -244,7 +244,7 @@ func showJobDetails(cmd *cobra.Command, cli *CLI, job *Job) {
 	cmd.Printf("Duration: %s\n", job.Duration().Round(time.Second))
 
 	if job.Error != nil {
-		cmd.Printf("Error: %v\n", cli.ErrorString("%v", job.Error))
+		cmd.Printf("Error: %v\n", fmt.Sprintf("%v", job.Error))
 	}
 
 	if job.Output != nil && job.Output.Len() > 0 {

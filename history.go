@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// HistoryBookmark represents a bookmarked command
+// HistoryBookmark represents a bookmarked command.
 type HistoryBookmark struct {
 	Name        string    `json:"name"`
 	Command     string    `json:"command"`
@@ -22,15 +22,35 @@ type HistoryBookmark struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// getHistory reads history from file and returns as slice
-func (c *CLI) getHistory() []string {
+// HistoryManager provides transport-agnostic command history management.
+// Each transport can configure its own history file path.
+type HistoryManager struct {
+	historyFile string
+	appName     string
+}
+
+// NewHistoryManager creates a new history manager.
+func NewHistoryManager(appName, historyFile string) *HistoryManager {
+	return &HistoryManager{
+		appName:     appName,
+		historyFile: historyFile,
+	}
+}
+
+// SetHistoryFile sets the history file path.
+func (hm *HistoryManager) SetHistoryFile(path string) {
+	hm.historyFile = path
+}
+
+// GetHistory reads history from file and returns as slice.
+func (hm *HistoryManager) GetHistory() []string {
 	var history []string
 
-	if c.historyFile == "" {
+	if hm.historyFile == "" {
 		return history
 	}
 
-	file, err := os.Open(c.historyFile)
+	file, err := os.Open(hm.historyFile)
 	if err != nil {
 		return history
 	}
@@ -47,19 +67,53 @@ func (c *CLI) getHistory() []string {
 	return history
 }
 
-// getBookmarksFile returns the path to bookmarks file
-func (c *CLI) getBookmarksFile() string {
-	if c.historyFile == "" {
-		return ""
+// AppendHistory adds a command to the history file.
+func (hm *HistoryManager) AppendHistory(command string) error {
+	if hm.historyFile == "" {
+		return nil // History disabled
 	}
-	dir := filepath.Dir(c.historyFile)
-	return filepath.Join(dir, "."+strings.ToLower(c.AppName)+".bookmarks")
+
+	// Create parent directory if needed
+	dir := filepath.Dir(hm.historyFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create history directory: %w", err)
+	}
+
+	f, err := os.OpenFile(hm.historyFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open history file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(command + "\n"); err != nil {
+		return fmt.Errorf("failed to write to history: %w", err)
+	}
+
+	return nil
 }
 
-// loadBookmarks loads bookmarks from file
-func (c *CLI) loadBookmarks() (map[string]*HistoryBookmark, error) {
+// ClearHistory removes all history.
+func (hm *HistoryManager) ClearHistory() error {
+	if hm.historyFile == "" {
+		return nil
+	}
+
+	return os.WriteFile(hm.historyFile, []byte{}, 0644)
+}
+
+// GetBookmarksFile returns the path to bookmarks file.
+func (hm *HistoryManager) GetBookmarksFile() string {
+	if hm.historyFile == "" {
+		return ""
+	}
+	dir := filepath.Dir(hm.historyFile)
+	return filepath.Join(dir, "."+strings.ToLower(hm.appName)+".bookmarks")
+}
+
+// LoadBookmarks loads bookmarks from file.
+func (hm *HistoryManager) LoadBookmarks() (map[string]*HistoryBookmark, error) {
 	bookmarks := make(map[string]*HistoryBookmark)
-	bookmarksFile := c.getBookmarksFile()
+	bookmarksFile := hm.GetBookmarksFile()
 	if bookmarksFile == "" {
 		return bookmarks, nil
 	}
@@ -79,9 +133,9 @@ func (c *CLI) loadBookmarks() (map[string]*HistoryBookmark, error) {
 	return bookmarks, nil
 }
 
-// saveBookmarks saves bookmarks to file
-func (c *CLI) saveBookmarks(bookmarks map[string]*HistoryBookmark) error {
-	bookmarksFile := c.getBookmarksFile()
+// SaveBookmarks saves bookmarks to file.
+func (hm *HistoryManager) SaveBookmarks(bookmarks map[string]*HistoryBookmark) error {
+	bookmarksFile := hm.GetBookmarksFile()
 	if bookmarksFile == "" {
 		return fmt.Errorf("bookmarks file not available")
 	}
@@ -89,7 +143,7 @@ func (c *CLI) saveBookmarks(bookmarks map[string]*HistoryBookmark) error {
 	// Create parent directory if needed
 	currentUser, err := user.Current()
 	if err == nil {
-		name := strings.ToLower(c.AppName)
+		name := strings.ToLower(hm.appName)
 		dir := filepath.Join(currentUser.HomeDir, fmt.Sprintf(".%s", name))
 		_ = os.MkdirAll(dir, 0755)
 	}
@@ -102,262 +156,159 @@ func (c *CLI) saveBookmarks(bookmarks map[string]*HistoryBookmark) error {
 	return os.WriteFile(bookmarksFile, data, 0644)
 }
 
-func AddHistory(cli *CLI) func(cmd *cobra.Command) {
-
+// AddHistory registers history-related commands.
+func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		var historyCmd = &cobra.Command{
 			Use:   "history",
-			Short: "history related commands",
-		}
-		var historyClearCmdFunc = func(cmd *cobra.Command, args []string) {
-			cmd.Printf("clearing history not available\n")
+			Short: "History related commands",
 		}
 
+		// history clear
 		var historyClearCmd = &cobra.Command{
 			Use:   "clear",
-			Short: "clear history",
-			Run:   historyClearCmdFunc,
-		}
-		var historySearchCmdFunc = func(cmd *cobra.Command, args []string) {
-
-			showDupes, _ := cmd.Flags().GetBool("show_dupes")
-			filter := strings.ToLower(args[0])
-
-			// Get history from file
-			history := cli.getHistory()
-			lines := len(history)
-			cmd.Printf("History: %d\n\n", lines)
-
-			cnt := 0
-			seen := make(map[string]bool)
-
-			for i := 0; i < lines; i++ {
-				line := history[i]
-
-				if !strings.Contains(strings.ToLower(line), filter) {
-					continue
+			Short: "Clear history",
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
 				}
 
-				if !showDupes {
-					if seen[line] {
-						continue
-					}
-					seen[line] = true
+				if err := exec.HistoryManager.ClearHistory(); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to clear history: %v", err))
+					return
 				}
-				cmd.Printf("%d: %s\n", i, line)
-				cnt++
-			}
 
+				cmd.Println("History cleared")
+			},
 		}
 
+		// history search
 		var historySearchCmd = &cobra.Command{
 			Use:     "search {filter} [--show_dupes]",
-			Short:   "show history",
+			Short:   "Search history",
 			Aliases: []string{"s"},
 			Args:    cobra.ExactArgs(1),
-			Run:     historySearchCmdFunc,
-		}
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
 
-		var historyLsCmdFunc = func(cmd *cobra.Command, args []string) {
-			// Get history from file
-			history := cli.getHistory()
-			lines := len(history)
-			cmd.Printf("History: %d\n\n", lines)
-			showDupes, _ := cmd.Flags().GetBool("show_dupes")
-			limit, _ := cmd.Flags().GetInt("limit")
+				showDupes, _ := cmd.Flags().GetBool("show_dupes")
+				filter := strings.ToLower(args[0])
 
-			cnt := 0
-			seen := make(map[string]bool)
+				history := exec.HistoryManager.GetHistory()
+				lines := len(history)
+				cmd.Printf("History: %d entries\n\n", lines)
 
-			start := lines - limit
-			if start < 0 {
-				start = 0
-			}
+				cnt := 0
+				seen := make(map[string]bool)
 
-			for i := start; i < lines; i++ {
-				line := history[i]
-				if !showDupes {
-					if seen[line] {
+				for i := 0; i < lines; i++ {
+					line := history[i]
+
+					if !strings.Contains(strings.ToLower(line), filter) {
 						continue
 					}
-					seen[line] = true
-				}
-				cmd.Printf("%d: %s\n", i, line)
-				cnt++
-				if cnt >= limit {
-					break
-				}
-			}
-		}
 
-		var historyLsCmd = &cobra.Command{
-			Use:     "list [--limit={n}] [--show_dupes]",
-			Short:   "show history",
-			Args:    cobra.NoArgs,
-			Aliases: []string{"ls", "l"},
-			Run:     historyLsCmdFunc,
-		}
-
-		// history bookmark - bookmark a command
-		var bookmarkAddCmd = &cobra.Command{
-			Use:   "add [name] [command]",
-			Short: "Bookmark a command",
-			Args:  cobra.MinimumNArgs(2),
-			Run: func(cmd *cobra.Command, args []string) {
-				name := args[0]
-				command := strings.Join(args[1:], " ")
-				desc, _ := cmd.Flags().GetString("description")
-
-				bookmarks, err := cli.loadBookmarks()
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to load bookmarks: %v", err)))
-					return
+					if !showDupes {
+						if seen[line] {
+							continue
+						}
+						seen[line] = true
+					}
+					cmd.Printf("%d: %s\n", i, line)
+					cnt++
 				}
 
-				bookmarks[name] = &HistoryBookmark{
-					Name:        name,
-					Command:     command,
-					Description: desc,
-					CreatedAt:   time.Now(),
+				if cnt == 0 {
+					cmd.Println("No matches found")
 				}
-
-				if err := cli.saveBookmarks(bookmarks); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to save bookmark: %v", err)))
-					return
-				}
-
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Bookmarked '%s'", name)))
 			},
 			PostRun: func(cmd *cobra.Command, args []string) {
 				ResetAllFlags(cmd)
 			},
 		}
-		bookmarkAddCmd.Flags().StringP("description", "d", "", "Description of the bookmark")
+		historySearchCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands")
 
-		// history bookmark list
-		var bookmarkListCmd = &cobra.Command{
-			Use:     "list",
-			Short:   "List all bookmarks",
-			Aliases: []string{"ls"},
+		// history list
+		var historyLsCmd = &cobra.Command{
+			Use:     "list [--limit={n}] [--show_dupes]",
+			Short:   "Show history",
+			Args:    cobra.NoArgs,
+			Aliases: []string{"ls", "l"},
 			Run: func(cmd *cobra.Command, args []string) {
-				bookmarks, err := cli.loadBookmarks()
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to load bookmarks: %v", err)))
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
 					return
 				}
 
-				if len(bookmarks) == 0 {
-					cmd.Println("No bookmarks")
-					return
+				history := exec.HistoryManager.GetHistory()
+				lines := len(history)
+				cmd.Printf("History: %d entries\n\n", lines)
+
+				showDupes, _ := cmd.Flags().GetBool("show_dupes")
+				limit, _ := cmd.Flags().GetInt("limit")
+
+				cnt := 0
+				seen := make(map[string]bool)
+
+				start := lines - limit
+				if start < 0 {
+					start = 0
 				}
 
-				cmd.Println("Bookmarks:")
-				for name, bm := range bookmarks {
-					if bm.Description != "" {
-						cmd.Printf("  %s: %s (%s)\n", name, bm.Command, bm.Description)
-					} else {
-						cmd.Printf("  %s: %s\n", name, bm.Command)
+				for i := start; i < lines; i++ {
+					line := history[i]
+					if !showDupes {
+						if seen[line] {
+							continue
+						}
+						seen[line] = true
+					}
+					cmd.Printf("%d: %s\n", i, line)
+					cnt++
+					if cnt >= limit {
+						break
 					}
 				}
 			},
-		}
-
-		// history bookmark run
-		var bookmarkRunCmd = &cobra.Command{
-			Use:   "run [name]",
-			Short: "Run a bookmarked command",
-			Args:  cobra.ExactArgs(1),
-			Run: func(cmd *cobra.Command, args []string) {
-				name := args[0]
-
-				bookmarks, err := cli.loadBookmarks()
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to load bookmarks: %v", err)))
-					return
-				}
-
-				bm, ok := bookmarks[name]
-				if !ok {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Bookmark '%s' not found", name)))
-					return
-				}
-
-				output, err := cli.ExecuteLine(bm.Command, nil)
-				if output != "" {
-					cmd.Print(output)
-					if !strings.HasSuffix(output, "\n") {
-						cmd.Println()
-					}
-				}
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
-				}
+			PostRun: func(cmd *cobra.Command, args []string) {
+				ResetAllFlags(cmd)
 			},
 		}
+		historyLsCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands")
+		historyLsCmd.Flags().IntP("limit", "n", 100, "Limit number of entries")
 
-		// history bookmark remove
-		var bookmarkRemoveCmd = &cobra.Command{
-			Use:     "remove [name]",
-			Short:   "Remove a bookmark",
-			Aliases: []string{"rm"},
-			Args:    cobra.ExactArgs(1),
-			Run: func(cmd *cobra.Command, args []string) {
-				name := args[0]
-
-				bookmarks, err := cli.loadBookmarks()
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to load bookmarks: %v", err)))
-					return
-				}
-
-				if _, ok := bookmarks[name]; !ok {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Bookmark '%s' not found", name)))
-					return
-				}
-
-				delete(bookmarks, name)
-
-				if err := cli.saveBookmarks(bookmarks); err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to save bookmarks: %v", err)))
-					return
-				}
-
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Removed bookmark '%s'", name)))
-			},
-		}
-
-		var bookmarkCmd = &cobra.Command{
-			Use:   "bookmark",
-			Short: "Manage history bookmarks",
-		}
-		bookmarkCmd.AddCommand(bookmarkAddCmd)
-		bookmarkCmd.AddCommand(bookmarkListCmd)
-		bookmarkCmd.AddCommand(bookmarkRunCmd)
-		bookmarkCmd.AddCommand(bookmarkRemoveCmd)
-
-		// history replay - re-execute a command from history
+		// history replay
 		var replayCmd = &cobra.Command{
 			Use:   "replay [index]",
 			Short: "Re-execute a command from history",
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-				index, err := strconv.Atoi(args[0])
-				if err != nil {
-					cmd.PrintErrln(cli.ErrorString("Invalid history index"))
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
 					return
 				}
 
-				history := cli.getHistory()
+				index, err := strconv.Atoi(args[0])
+				if err != nil {
+					cmd.PrintErrln("Invalid history index")
+					return
+				}
+
+				history := exec.HistoryManager.GetHistory()
 				if index < 0 || index >= len(history) {
-					cmd.PrintErrln(cli.ErrorString("History index out of range"))
+					cmd.PrintErrln("History index out of range")
 					return
 				}
 
 				command := history[index]
-				cmd.Println(cli.InfoString(fmt.Sprintf("Replaying: %s", command)))
+				cmd.Printf("Replaying: %s\n", command)
 
-				output, err := cli.ExecuteLine(command, nil)
+				output, err := exec.Execute(command, nil)
 				if output != "" {
 					cmd.Print(output)
 					if !strings.HasSuffix(output, "\n") {
@@ -365,17 +316,22 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 					}
 				}
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 				}
 			},
 		}
 
-		// history stats - show statistics
+		// history stats
 		var statsCmd = &cobra.Command{
 			Use:   "stats",
 			Short: "Show history statistics",
 			Run: func(cmd *cobra.Command, args []string) {
-				history := cli.getHistory()
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				history := exec.HistoryManager.GetHistory()
 				total := len(history)
 
 				if total == 0 {
@@ -399,7 +355,7 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 					counts = append(counts, cmdCount{cmd, count})
 				}
 
-				// Simple sort by count (bubble sort for small data)
+				// Simple sort by count (bubble sort)
 				for i := 0; i < len(counts); i++ {
 					for j := i + 1; j < len(counts); j++ {
 						if counts[j].count > counts[i].count {
@@ -408,10 +364,9 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 					}
 				}
 
-				cmd.Println(fmt.Sprintf("Total commands: %d", total))
-				cmd.Println(fmt.Sprintf("Unique commands: %d", len(unique)))
-				cmd.Println(fmt.Sprintf("Duplicates: %d", total-len(unique)))
-				cmd.Println()
+				cmd.Printf("Total commands: %d\n", total)
+				cmd.Printf("Unique commands: %d\n", len(unique))
+				cmd.Printf("Duplicates: %d\n\n", total-len(unique))
 				cmd.Println("Top 10 most used commands:")
 
 				limit := 10
@@ -425,16 +380,167 @@ func AddHistory(cli *CLI) func(cmd *cobra.Command) {
 			},
 		}
 
+		// Bookmark subcommands
+		var bookmarkCmd = &cobra.Command{
+			Use:   "bookmark",
+			Short: "Manage history bookmarks",
+		}
+
+		var bookmarkAddCmd = &cobra.Command{
+			Use:   "add [name] [command...]",
+			Short: "Bookmark a command",
+			Args:  cobra.MinimumNArgs(2),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				name := args[0]
+				command := strings.Join(args[1:], " ")
+				desc, _ := cmd.Flags().GetString("description")
+
+				bookmarks, err := exec.HistoryManager.LoadBookmarks()
+				if err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to load bookmarks: %v", err))
+					return
+				}
+
+				bookmarks[name] = &HistoryBookmark{
+					Name:        name,
+					Command:     command,
+					Description: desc,
+					CreatedAt:   time.Now(),
+				}
+
+				if err := exec.HistoryManager.SaveBookmarks(bookmarks); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to save bookmark: %v", err))
+					return
+				}
+
+				cmd.Printf("Bookmarked '%s'\n", name)
+			},
+			PostRun: func(cmd *cobra.Command, args []string) {
+				ResetAllFlags(cmd)
+			},
+		}
+		bookmarkAddCmd.Flags().StringP("description", "d", "", "Description of the bookmark")
+
+		var bookmarkListCmd = &cobra.Command{
+			Use:     "list",
+			Short:   "List all bookmarks",
+			Aliases: []string{"ls"},
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				bookmarks, err := exec.HistoryManager.LoadBookmarks()
+				if err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to load bookmarks: %v", err))
+					return
+				}
+
+				if len(bookmarks) == 0 {
+					cmd.Println("No bookmarks")
+					return
+				}
+
+				cmd.Println("Bookmarks:")
+				for name, bm := range bookmarks {
+					if bm.Description != "" {
+						cmd.Printf("  %s: %s (%s)\n", name, bm.Command, bm.Description)
+					} else {
+						cmd.Printf("  %s: %s\n", name, bm.Command)
+					}
+				}
+			},
+		}
+
+		var bookmarkRunCmd = &cobra.Command{
+			Use:   "run [name]",
+			Short: "Run a bookmarked command",
+			Args:  cobra.ExactArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				name := args[0]
+
+				bookmarks, err := exec.HistoryManager.LoadBookmarks()
+				if err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to load bookmarks: %v", err))
+					return
+				}
+
+				bm, ok := bookmarks[name]
+				if !ok {
+					cmd.PrintErrln(fmt.Sprintf("Bookmark '%s' not found", name))
+					return
+				}
+
+				output, err := exec.Execute(bm.Command, nil)
+				if output != "" {
+					cmd.Print(output)
+					if !strings.HasSuffix(output, "\n") {
+						cmd.Println()
+					}
+				}
+				if err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
+				}
+			},
+		}
+
+		var bookmarkRemoveCmd = &cobra.Command{
+			Use:     "remove [name]",
+			Short:   "Remove a bookmark",
+			Aliases: []string{"rm"},
+			Args:    cobra.ExactArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				name := args[0]
+
+				bookmarks, err := exec.HistoryManager.LoadBookmarks()
+				if err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to load bookmarks: %v", err))
+					return
+				}
+
+				if _, ok := bookmarks[name]; !ok {
+					cmd.PrintErrln(fmt.Sprintf("Bookmark '%s' not found", name))
+					return
+				}
+
+				delete(bookmarks, name)
+
+				if err := exec.HistoryManager.SaveBookmarks(bookmarks); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to save bookmarks: %v", err))
+					return
+				}
+
+				cmd.Printf("Removed bookmark '%s'\n", name)
+			},
+		}
+
+		bookmarkCmd.AddCommand(bookmarkAddCmd)
+		bookmarkCmd.AddCommand(bookmarkListCmd)
+		bookmarkCmd.AddCommand(bookmarkRunCmd)
+		bookmarkCmd.AddCommand(bookmarkRemoveCmd)
+
 		historyCmd.AddCommand(historyClearCmd)
 		historyCmd.AddCommand(historySearchCmd)
 		historyCmd.AddCommand(historyLsCmd)
 		historyCmd.AddCommand(bookmarkCmd)
 		historyCmd.AddCommand(replayCmd)
 		historyCmd.AddCommand(statsCmd)
-
-		historyLsCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands in the history. Example: 'ls --show_dupes'")
-		historyLsCmd.Flags().IntVarP(new(int), "limit", "", 100, "limit records")
-		historySearchCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands in the history. Example: 'ls --show_dupes'")
 
 		rootCmd.AddCommand(historyCmd)
 	}

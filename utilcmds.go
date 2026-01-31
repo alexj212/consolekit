@@ -3,7 +3,7 @@ package consolekit
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	osexec "os/exec"
 	"strings"
 	"time"
 
@@ -11,7 +11,7 @@ import (
 )
 
 // AddUtilityCommands adds utility commands like which, time, etc.
-func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddUtilityCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 
 		// which command - shows if a command is an alias or built-in
@@ -24,14 +24,14 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 				cmdName := args[0]
 
 				// Check if it's an alias
-				if val, ok := cli.aliases.Get(cmdName); ok {
+				if val, ok := exec.aliases.Get(cmdName); ok {
 					cmd.Printf("%s: alias for %q\n", cmdName, val)
 					return
 				}
 
 				// Check if it's a variable
 				varName := "@" + cmdName
-				if val, ok := cli.Defaults.Get(varName); ok {
+				if val, ok := exec.Variables.Get(varName); ok {
 					cmd.Printf("%s: variable with value %q\n", cmdName, val)
 					return
 				}
@@ -71,7 +71,7 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 
 				// Measure execution time
 				start := time.Now()
-				output, err := cli.ExecuteLine(line, nil)
+				output, err := exec.Execute(line, nil)
 				duration := time.Since(start)
 
 				// Print command output
@@ -103,7 +103,7 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 				scriptArgs := args[1:]
 
 				// Load the script
-				lines, err := LoadScript(cli.Scripts, cmd, scriptPath)
+				lines, err := LoadScript(exec.Scripts, cmd, scriptPath)
 				if err != nil {
 					cmd.PrintErrf("Error loading script: %v\n", err)
 					return
@@ -124,7 +124,7 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 					}
 
 					// Execute in current context
-					output, err := cli.ExecuteLine(line, nil)
+					output, err := exec.Execute(line, nil)
 					if output != "" {
 						cmd.Print(output)
 						if !strings.HasSuffix(output, "\n") {
@@ -154,7 +154,7 @@ func AddUtilityCommands(cli *CLI) func(cmd *cobra.Command) {
 					editor = "vi"
 				}
 
-				editCmd := exec.Command(editor, filePath)
+				editCmd := osexec.Command(editor, filePath)
 				editCmd.Stdin = os.Stdin
 				editCmd.Stdout = os.Stdout
 				editCmd.Stderr = os.Stderr

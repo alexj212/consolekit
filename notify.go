@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-// NotifyManager handles system notifications
-type NotifyManager struct {
+// NotificationManager handles system notifications
+type NotificationManager struct {
 	webhookURL string
 }
 
-// NewNotifyManager creates a new notification manager
-func NewNotifyManager() *NotifyManager {
-	return &NotifyManager{}
+// NewNotificationManager creates a new notification manager
+func NewNotificationManager() *NotificationManager {
+	return &NotificationManager{}
 }
 
 // SetWebhook sets a webhook URL for notifications
-func (nm *NotifyManager) SetWebhook(url string) {
+func (nm *NotificationManager) SetWebhook(url string) {
 	nm.webhookURL = url
 }
 
 // Send sends a desktop notification
-func (nm *NotifyManager) Send(title string, message string, urgency string) error {
+func (nm *NotificationManager) Send(title string, message string, urgency string) error {
 	switch runtime.GOOS {
 	case "linux":
 		return nm.sendLinux(title, message, urgency)
@@ -40,7 +40,7 @@ func (nm *NotifyManager) Send(title string, message string, urgency string) erro
 }
 
 // sendLinux sends notification via notify-send
-func (nm *NotifyManager) sendLinux(title string, message string, urgency string) error {
+func (nm *NotificationManager) sendLinux(title string, message string, urgency string) error {
 	args := []string{title, message}
 	if urgency != "" {
 		args = append([]string{"-u", urgency}, args...)
@@ -51,14 +51,14 @@ func (nm *NotifyManager) sendLinux(title string, message string, urgency string)
 }
 
 // sendMac sends notification via osascript
-func (nm *NotifyManager) sendMac(title string, message string) error {
+func (nm *NotificationManager) sendMac(title string, message string) error {
 	script := fmt.Sprintf(`display notification "%s" with title "%s"`, message, title)
 	cmd := exec.Command("osascript", "-e", script)
 	return cmd.Run()
 }
 
 // sendWindows sends notification via PowerShell
-func (nm *NotifyManager) sendWindows(title string, message string) error {
+func (nm *NotificationManager) sendWindows(title string, message string) error {
 	script := fmt.Sprintf(`
 		[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 		$Template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
@@ -78,7 +78,7 @@ func (nm *NotifyManager) sendWindows(title string, message string) error {
 }
 
 // SendWebhook sends a notification to a webhook URL
-func (nm *NotifyManager) SendWebhook(title string, message string) error {
+func (nm *NotificationManager) SendWebhook(title string, message string) error {
 	if nm.webhookURL == "" {
 		return fmt.Errorf("no webhook URL configured")
 	}

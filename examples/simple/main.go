@@ -29,12 +29,13 @@ var (
 )
 
 func main() {
+	// Create command executor (core execution engine)
+	customizer := func(exec *consolekit.CommandExecutor) error {
+		exec.Scripts = Data
+		exec.AddBuiltinCommands()
+		exec.AddCommands(consolekit.AddRun(exec, Data))
 
-	customizer := func(cli *consolekit.CLI) error {
-		cli.Scripts = Data
-		cli.AddAll()
-		cli.AddCommands(consolekit.AddRun(cli, Data))
-
+		// Add custom version command
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf("BuildDate    : %s\n", BuildDate)
 			cmd.Printf("LatestCommit : %s\n", LatestCommit)
@@ -49,20 +50,34 @@ func main() {
 			Short:   "Show version info",
 			Run:     verCmdFunc,
 		}
-		cli.AddCommands(func(rootCmd *cobra.Command) {
+		exec.AddCommands(func(rootCmd *cobra.Command) {
 			rootCmd.AddCommand(verCmd)
 		})
 
 		return nil
 	}
-	cli, err := consolekit.NewCLI("simple", customizer)
+
+	executor, err := consolekit.NewCommandExecutor("simple", customizer)
 	if err != nil {
-		fmt.Printf("consolekit.NewCLI error, %v\n", err)
+		fmt.Printf("consolekit.NewCommandExecutor error, %v\n", err)
 		return
 	}
 
+	// Create REPL handler (local terminal interface)
+	handler := consolekit.NewREPLHandler(executor)
+
+	// By default, NewREPLHandler() uses ReflectiveAdapter (reeflective/console)
+	// To switch to a different display backend (e.g., bubbletea):
+	//   adapter := consolekit.NewBubbletteaAdapter("simple")
+	//   handler.SetDisplayAdapter(adapter)
+
+	// Set prompt with leading newline (helps with terminal scrolling issues)
+	handler.SetPrompt(func() string {
+		return fmt.Sprintf("\nsimple > ")
+	})
+
 	// Run will execute command-line args if present, otherwise start REPL
-	err = cli.Run()
+	err = handler.Run()
 	if err != nil {
 		fmt.Printf("Error, %v\n", err)
 	}

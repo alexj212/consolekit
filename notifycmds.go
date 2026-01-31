@@ -7,7 +7,7 @@ import (
 )
 
 // AddNotifyCommands adds notification commands
-func AddNotifyCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddNotifyCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		var notifyCmd = &cobra.Command{
 			Use:   "notify",
@@ -35,19 +35,19 @@ Examples:
 				message := args[1]
 
 				if webhook {
-					err := cli.NotifyManager.SendWebhook(title, message)
+					err := exec.NotificationManager.SendWebhook(title, message)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to send webhook: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to send webhook: %v", err))
 						return
 					}
-					cmd.Println(cli.SuccessString("Webhook notification sent"))
+					cmd.Println(fmt.Sprintf("Webhook notification sent"))
 				} else {
-					err := cli.NotifyManager.Send(title, message, urgency)
+					err := exec.NotificationManager.Send(title, message, urgency)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Failed to send notification: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Failed to send notification: %v", err))
 						return
 					}
-					cmd.Println(cli.SuccessString("Desktop notification sent"))
+					cmd.Println(fmt.Sprintf("Desktop notification sent"))
 				}
 			},
 			PostRun: func(cmd *cobra.Command, args []string) {
@@ -65,21 +65,21 @@ Examples:
 			Args:  cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
 				webhookURL := args[0]
-				cli.NotifyManager.SetWebhook(webhookURL)
+				exec.NotificationManager.SetWebhook(webhookURL)
 
 				// Also save to config if available
-				if cli.Config != nil {
-					if cli.Config.Notification.WebhookURL != webhookURL {
-						cli.Config.Notification.WebhookURL = webhookURL
-						if err := cli.Config.Save(); err != nil {
-							cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Warning: failed to save config: %v", err)))
+				if exec.Config != nil {
+					if exec.Config.Notification.WebhookURL != webhookURL {
+						exec.Config.Notification.WebhookURL = webhookURL
+						if err := exec.Config.Save(); err != nil {
+							cmd.PrintErrln(fmt.Sprintf("Warning: failed to save config: %v", err))
 						} else {
-							cmd.Println(cli.SuccessString("Webhook URL saved to config"))
+							cmd.Println(fmt.Sprintf("Webhook URL saved to config"))
 						}
 					}
 				}
 
-				cmd.Println(cli.SuccessString(fmt.Sprintf("Webhook URL set to: %s", webhookURL)))
+				cmd.Println(fmt.Sprintf("Webhook URL set to: %s", webhookURL))
 			},
 		}
 

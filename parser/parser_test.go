@@ -1,411 +1,322 @@
 package parser
 
 import (
+	"reflect"
 	"testing"
 )
 
-func TestParseCommands_SimpleCommand(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantCmds int
-		wantCmd  string
-		wantArgs []string
-	}{
-		{
-			name:     "simple command no args",
-			input:    "help",
-			wantCmds: 1,
-			wantCmd:  "help",
-			wantArgs: []string{},
-		},
-		{
-			name:     "command with single arg",
-			input:    "print hello",
-			wantCmds: 1,
-			wantCmd:  "print",
-			wantArgs: []string{"hello"},
-		},
-		{
-			name:     "command with multiple args",
-			input:    "print hello world",
-			wantCmds: 1,
-			wantCmd:  "print",
-			wantArgs: []string{"hello", "world"},
-		},
-		{
-			name:     "command with quoted arg",
-			input:    `print "hello world"`,
-			wantCmds: 1,
-			wantCmd:  "print",
-			wantArgs: []string{"hello world"},
-		},
-		{
-			name:     "command with single quoted arg",
-			input:    `print 'hello world'`,
-			wantCmds: 1,
-			wantCmd:  "print",
-			wantArgs: []string{"hello world"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			outputFile, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if outputFile != "" {
-				t.Errorf("expected no output file, got %q", outputFile)
-			}
-			if len(commands) != tt.wantCmds {
-				t.Fatalf("got %d commands, want %d", len(commands), tt.wantCmds)
-			}
-			cmd := commands[0]
-			if cmd.Cmd != tt.wantCmd {
-				t.Errorf("got cmd %q, want %q", cmd.Cmd, tt.wantCmd)
-			}
-			if len(cmd.Args) != len(tt.wantArgs) {
-				t.Errorf("got %d args, want %d", len(cmd.Args), len(tt.wantArgs))
-			}
-			for i, arg := range cmd.Args {
-				if arg != tt.wantArgs[i] {
-					t.Errorf("arg[%d] = %q, want %q", i, arg, tt.wantArgs[i])
-				}
-			}
-		})
-	}
-}
-
-func TestParseCommands_QuotedSpecialChars(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantCmd  string
-		wantArgs []string
-	}{
-		{
-			name:     "pipe in quotes",
-			input:    `print "hello | world"`,
-			wantCmd:  "print",
-			wantArgs: []string{"hello | world"},
-		},
-		{
-			name:     "redirect in quotes",
-			input:    `print "value > 5"`,
-			wantCmd:  "print",
-			wantArgs: []string{"value > 5"},
-		},
-		{
-			name:     "semicolon in quotes",
-			input:    `print "cmd1; cmd2"`,
-			wantCmd:  "print",
-			wantArgs: []string{"cmd1; cmd2"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if len(commands) != 1 {
-				t.Fatalf("got %d commands, want 1", len(commands))
-			}
-			cmd := commands[0]
-			if cmd.Cmd != tt.wantCmd {
-				t.Errorf("got cmd %q, want %q", cmd.Cmd, tt.wantCmd)
-			}
-			if len(cmd.Args) != len(tt.wantArgs) {
-				t.Errorf("got %d args, want %d", len(cmd.Args), len(tt.wantArgs))
-			}
-			for i, arg := range cmd.Args {
-				if arg != tt.wantArgs[i] {
-					t.Errorf("arg[%d] = %q, want %q", i, arg, tt.wantArgs[i])
-				}
-			}
-		})
-	}
-}
-
-func TestParseCommands_Piping(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		wantCmds  []string
-		wantPipes int
-	}{
-		{
-			name:      "two commands piped",
-			input:     "print hello | grep he",
-			wantCmds:  []string{"print", "grep"},
-			wantPipes: 1,
-		},
-		{
-			name:      "three commands piped",
-			input:     "print hello world | grep hello | grep world",
-			wantCmds:  []string{"print", "grep", "grep"},
-			wantPipes: 2,
-		},
-		{
-			name:      "pipe with quoted args",
-			input:     `print "hello world" | grep "hello"`,
-			wantCmds:  []string{"print", "grep"},
-			wantPipes: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if len(commands) != 1 {
-				t.Fatalf("expected 1 command group, got %d", len(commands))
-			}
-
-			// Count pipes
-			pipeCount := 0
-			current := commands[0]
-			cmdIndex := 0
-
-			for current != nil {
-				if cmdIndex >= len(tt.wantCmds) {
-					t.Fatalf("more commands than expected")
-				}
-				if current.Cmd != tt.wantCmds[cmdIndex] {
-					t.Errorf("command[%d] = %q, want %q", cmdIndex, current.Cmd, tt.wantCmds[cmdIndex])
-				}
-				if current.Pipe != nil {
-					pipeCount++
-				}
-				current = current.Pipe
-				cmdIndex++
-			}
-
-			if pipeCount != tt.wantPipes {
-				t.Errorf("got %d pipes, want %d", pipeCount, tt.wantPipes)
-			}
-			if cmdIndex != len(tt.wantCmds) {
-				t.Errorf("got %d commands, want %d", cmdIndex, len(tt.wantCmds))
-			}
-		})
-	}
-}
-
-func TestParseCommands_Redirection(t *testing.T) {
+func TestParseCommands(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          string
 		wantOutputFile string
-		wantCmd        string
+		wantCmds       int // Number of top-level commands
+		wantErr        bool
 	}{
 		{
-			name:           "simple redirect",
-			input:          "print hello > output.txt",
+			name:           "simple command",
+			input:          "echo hello",
+			wantOutputFile: "",
+			wantCmds:       1,
+			wantErr:        false,
+		},
+		{
+			name:           "pipe chain",
+			input:          "echo hello | grep h | wc",
+			wantOutputFile: "",
+			wantCmds:       1, // One chain
+			wantErr:        false,
+		},
+		{
+			name:           "output redirection",
+			input:          "echo test > output.txt",
 			wantOutputFile: "output.txt",
-			wantCmd:        "print",
+			wantCmds:       1,
+			wantErr:        false,
 		},
 		{
-			name:           "redirect with path",
-			input:          "print test > /tmp/output.log",
-			wantOutputFile: "/tmp/output.log",
-			wantCmd:        "print",
+			name:           "quoted string with pipe",
+			input:          `echo "hello | world"`,
+			wantOutputFile: "",
+			wantCmds:       1,
+			wantErr:        false,
 		},
 		{
-			name:           "redirect with spaces",
-			input:          "print hello world > result.txt",
-			wantOutputFile: "result.txt",
-			wantCmd:        "print",
+			name:           "semicolon separator",
+			input:          "cmd1; cmd2; cmd3",
+			wantOutputFile: "",
+			wantCmds:       3,
+			wantErr:        false,
+		},
+		{
+			name:           "empty input",
+			input:          "",
+			wantOutputFile: "",
+			wantCmds:       0,
+			wantErr:        false,
+		},
+		{
+			name:           "whitespace only",
+			input:          "   \t\n  ",
+			wantOutputFile: "",
+			wantCmds:       0,
+			wantErr:        false,
+		},
+		{
+			name:           "comment line",
+			input:          "# this is a comment",
+			wantOutputFile: "",
+			wantCmds:       0,
+			wantErr:        false,
+		},
+		{
+			name:           "command with comment",
+			input:          "echo test\n# comment\necho test2",
+			wantOutputFile: "",
+			wantCmds:       2,
+			wantErr:        false,
+		},
+		{
+			name:           "backslash continuation",
+			input:          "echo hello \\\nworld",
+			wantOutputFile: "",
+			wantCmds:       1,
+			wantErr:        false,
+		},
+		{
+			name:           "multiple output redirections should error",
+			input:          "echo test > file1.txt\necho test2 > file2.txt",
+			wantOutputFile: "",
+			wantCmds:       0,
+			wantErr:        true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			outputFile, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if outputFile != tt.wantOutputFile {
-				t.Errorf("got output file %q, want %q", outputFile, tt.wantOutputFile)
-			}
-			if len(commands) != 1 {
-				t.Fatalf("got %d commands, want 1", len(commands))
-			}
-			if commands[0].Cmd != tt.wantCmd {
-				t.Errorf("got cmd %q, want %q", commands[0].Cmd, tt.wantCmd)
-			}
-		})
-	}
-}
-
-func TestParseCommands_PipeAndRedirect(t *testing.T) {
-	input := "print hello world | grep hello > output.txt"
-	outputFile, commands, err := ParseCommands(input)
-	if err != nil {
-		t.Fatalf("ParseCommands() error = %v", err)
-	}
-
-	if outputFile != "output.txt" {
-		t.Errorf("got output file %q, want %q", outputFile, "output.txt")
-	}
-
-	if len(commands) != 1 {
-		t.Fatalf("expected 1 command group, got %d", len(commands))
-	}
-
-	// Check first command
-	if commands[0].Cmd != "print" {
-		t.Errorf("first command = %q, want %q", commands[0].Cmd, "print")
-	}
-
-	// Check piped command
-	if commands[0].Pipe == nil {
-		t.Fatal("expected pipe, got nil")
-	}
-	if commands[0].Pipe.Cmd != "grep" {
-		t.Errorf("piped command = %q, want %q", commands[0].Pipe.Cmd, "grep")
-	}
-}
-
-func TestParseCommands_CommandChaining(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantCmds []string
-	}{
-		{
-			name:     "two commands with semicolon",
-			input:    "print hello ; print world",
-			wantCmds: []string{"print", "print"},
-		},
-		{
-			name:     "three commands with semicolon",
-			input:    "print a ; print b ; print c",
-			wantCmds: []string{"print", "print", "print"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if len(commands) != len(tt.wantCmds) {
-				t.Fatalf("got %d commands, want %d", len(commands), len(tt.wantCmds))
-			}
-			for i, cmd := range commands {
-				if cmd.Cmd != tt.wantCmds[i] {
-					t.Errorf("command[%d] = %q, want %q", i, cmd.Cmd, tt.wantCmds[i])
-				}
-			}
-		})
-	}
-}
-
-func TestParseCommands_Comments(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantCmds int
-	}{
-		{
-			name:     "comment only",
-			input:    "# this is a comment",
-			wantCmds: 0,
-		},
-		{
-			name:     "command with comment on next line",
-			input:    "print hello\n# comment",
-			wantCmds: 1,
-		},
-		{
-			name:     "multiple lines with comments",
-			input:    "# comment\nprint hello\n# another comment\nprint world",
-			wantCmds: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if len(commands) != tt.wantCmds {
-				t.Errorf("got %d commands, want %d", len(commands), tt.wantCmds)
-			}
-		})
-	}
-}
-
-func TestParseCommands_MultiLine(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		wantCmd  string
-		wantArgs []string
-	}{
-		{
-			name:     "backslash continuation",
-			input:    "print hello \\\nworld",
-			wantCmd:  "print",
-			wantArgs: []string{"hello", "world"},
-		},
-		{
-			name:     "multiple backslash continuations",
-			input:    "print \\\nhello \\\nworld",
-			wantCmd:  "print",
-			wantArgs: []string{"hello", "world"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, commands, err := ParseCommands(tt.input)
-			if err != nil {
-				t.Fatalf("ParseCommands() error = %v", err)
-			}
-			if len(commands) != 1 {
-				t.Fatalf("got %d commands, want 1", len(commands))
-			}
-			cmd := commands[0]
-			if cmd.Cmd != tt.wantCmd {
-				t.Errorf("got cmd %q, want %q", cmd.Cmd, tt.wantCmd)
-			}
-			if len(cmd.Args) != len(tt.wantArgs) {
-				t.Errorf("got %d args, want %d", len(cmd.Args), len(tt.wantArgs))
-			}
-			for i, arg := range cmd.Args {
-				if arg != tt.wantArgs[i] {
-					t.Errorf("arg[%d] = %q, want %q", i, arg, tt.wantArgs[i])
-				}
-			}
-		})
-	}
-}
-
-func TestParseCommands_ErrorCases(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{
-			name:    "empty command",
-			input:   "",
-			wantErr: false, // Should return empty commands slice
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := ParseCommands(tt.input)
+			gotOutputFile, gotCmds, err := ParseCommands(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseCommands() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotOutputFile != tt.wantOutputFile {
+				t.Errorf("ParseCommands() outputFile = %v, want %v", gotOutputFile, tt.wantOutputFile)
+			}
+			if len(gotCmds) != tt.wantCmds {
+				t.Errorf("ParseCommands() got %d commands, want %d", len(gotCmds), tt.wantCmds)
+			}
+		})
+	}
+}
+
+func TestPipeChain(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantChain []string // Expected command names in pipe chain
+	}{
+		{
+			name:      "no pipes",
+			input:     "echo hello",
+			wantChain: []string{"echo"},
+		},
+		{
+			name:      "two commands",
+			input:     "echo hello | grep h",
+			wantChain: []string{"echo", "grep"},
+		},
+		{
+			name:      "three commands",
+			input:     "cat file | grep pattern | wc -l",
+			wantChain: []string{"cat", "grep", "wc"},
+		},
+		{
+			name:      "quoted pipe character",
+			input:     `echo "test | pipe"`,
+			wantChain: []string{"echo"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, cmds, err := ParseCommands(tt.input)
+			if err != nil {
+				t.Fatalf("ParseCommands() error = %v", err)
+			}
+			if len(cmds) != 1 {
+				t.Fatalf("Expected 1 command chain, got %d", len(cmds))
+			}
+
+			// Walk the pipe chain
+			var got []string
+			cmd := cmds[0]
+			for cmd != nil {
+				got = append(got, cmd.Cmd)
+				cmd = cmd.Pipe
+			}
+
+			if !reflect.DeepEqual(got, tt.wantChain) {
+				t.Errorf("Pipe chain = %v, want %v", got, tt.wantChain)
+			}
+		})
+	}
+}
+
+func TestQuoteHandling(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantArgs []string // Expected args for first command
+	}{
+		{
+			name:     "double quotes",
+			input:    `echo "hello world"`,
+			wantArgs: []string{"hello world"},
+		},
+		{
+			name:     "single quotes",
+			input:    `echo 'hello world'`,
+			wantArgs: []string{"hello world"},
+		},
+		{
+			name:     "mixed quotes",
+			input:    `echo "double" 'single' plain`,
+			wantArgs: []string{"double", "single", "plain"},
+		},
+		{
+			name:     "escaped quote",
+			input:    `echo \"test\"`,
+			wantArgs: []string{`"test"`},
+		},
+		{
+			name:     "nested quotes",
+			input:    `echo "outer 'inner' outer"`,
+			wantArgs: []string{"outer 'inner' outer"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, cmds, err := ParseCommands(tt.input)
+			if err != nil {
+				t.Fatalf("ParseCommands() error = %v", err)
+			}
+			if len(cmds) == 0 {
+				t.Fatal("Expected at least one command")
+			}
+
+			if !reflect.DeepEqual(cmds[0].Args, tt.wantArgs) {
+				t.Errorf("Args = %v, want %v", cmds[0].Args, tt.wantArgs)
+			}
+		})
+	}
+}
+
+func TestFindUnquotedChar(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		char  rune
+		want  int
+	}{
+		{
+			name:  "not quoted",
+			input: "echo | grep",
+			char:  '|',
+			want:  5,
+		},
+		{
+			name:  "in double quotes",
+			input: `echo "test | pipe"`,
+			char:  '|',
+			want:  -1,
+		},
+		{
+			name:  "in single quotes",
+			input: `echo 'test | pipe'`,
+			char:  '|',
+			want:  -1,
+		},
+		{
+			name:  "escaped",
+			input: `echo test \| pipe`,
+			char:  '|',
+			want:  -1,
+		},
+		{
+			name:  "after quotes",
+			input: `echo "test" | grep`,
+			char:  '|',
+			want:  12,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findUnquotedChar(tt.input, tt.char)
+			if got != tt.want {
+				t.Errorf("findUnquotedChar() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSplitByUnquotedChar(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		char  rune
+		want  []string
+	}{
+		{
+			name:  "simple split",
+			input: "cmd1; cmd2; cmd3",
+			char:  ';',
+			want:  []string{"cmd1", " cmd2", " cmd3"},
+		},
+		{
+			name:  "quoted separator",
+			input: `echo "test;test"; cmd2`,
+			char:  ';',
+			want:  []string{`echo "test;test"`, ` cmd2`},
+		},
+		{
+			name:  "no separator",
+			input: "echo hello",
+			char:  ';',
+			want:  []string{"echo hello"},
+		},
+		{
+			name:  "pipe split",
+			input: "echo test | grep t | wc",
+			char:  '|',
+			want:  []string{"echo test ", " grep t ", " wc"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitByUnquotedChar(tt.input, tt.char)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("splitByUnquotedChar() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func BenchmarkParseCommands(b *testing.B) {
+	inputs := []string{
+		"echo hello",
+		"echo hello | grep h | wc",
+		"echo test > output.txt",
+		`echo "hello | world" | grep hello`,
+		"cmd1; cmd2; cmd3",
+	}
+
+	for _, input := range inputs {
+		b.Run(input, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				_, _, _ = ParseCommands(input)
 			}
 		})
 	}

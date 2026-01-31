@@ -10,7 +10,7 @@ import (
 )
 
 // AddControlFlowCommands adds control flow commands (case, while, for)
-func AddControlFlowCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddControlFlowCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// case command - simple case/switch statement
 		var caseCmd = &cobra.Command{
@@ -29,7 +29,7 @@ Examples:
 				patterns := args[1:]
 
 				if len(patterns)%2 != 0 {
-					cmd.PrintErrln(cli.ErrorString("case requires pairs of pattern and command"))
+					cmd.PrintErrln(fmt.Sprintf("case requires pairs of pattern and command"))
 					return
 				}
 
@@ -40,9 +40,9 @@ Examples:
 
 					// Check if pattern matches
 					if pattern == "*" || pattern == value {
-						output, err := cli.ExecuteLine(command, nil)
+						output, err := exec.Execute(command, nil)
 						if err != nil {
-							cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error: %v", err)))
+							cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
 							return
 						}
 						if output != "" {
@@ -57,7 +57,7 @@ Examples:
 				}
 
 				if !executed {
-					cmd.PrintErrln(cli.InfoString("No matching case found"))
+					cmd.PrintErrln(fmt.Sprintf("No matching case found"))
 				}
 			},
 		}
@@ -83,16 +83,16 @@ Examples:
 
 				for iteration < maxIterations {
 					// Check condition
-					_, err := cli.ExecuteLine(condition, nil)
+					_, err := exec.Execute(condition, nil)
 					if err != nil {
 						// Condition failed, exit loop
 						break
 					}
 
 					// Execute body
-					output, err := cli.ExecuteLine(body, nil)
+					output, err := exec.Execute(body, nil)
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error in loop body: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Error in loop body: %v", err))
 						return
 					}
 
@@ -107,7 +107,7 @@ Examples:
 				}
 
 				if iteration >= maxIterations {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("while loop exceeded maximum iterations (%d)", maxIterations)))
+					cmd.PrintErrln(fmt.Sprintf("while loop exceeded maximum iterations (%d)", maxIterations))
 				}
 			},
 		}
@@ -126,13 +126,13 @@ Examples:
 			Args: cobra.MinimumNArgs(5),
 			Run: func(cmd *cobra.Command, args []string) {
 				if len(args) < 5 {
-					cmd.PrintErrln(cli.ErrorString("for requires: var in values... do command"))
+					cmd.PrintErrln(fmt.Sprintf("for requires: var in values... do command"))
 					return
 				}
 
 				varName := "@" + args[0]
 				if args[1] != "in" {
-					cmd.PrintErrln(cli.ErrorString("for requires 'in' keyword"))
+					cmd.PrintErrln(fmt.Sprintf("for requires 'in' keyword"))
 					return
 				}
 
@@ -146,7 +146,7 @@ Examples:
 				}
 
 				if doIndex == -1 {
-					cmd.PrintErrln(cli.ErrorString("for requires 'do' keyword"))
+					cmd.PrintErrln(fmt.Sprintf("for requires 'do' keyword"))
 					return
 				}
 
@@ -156,20 +156,20 @@ Examples:
 				// Execute command for each value
 				for _, value := range values {
 					// Set the variable temporarily
-					oldValue, hasOld := cli.Defaults.Get(varName)
-					cli.Defaults.Set(varName, value)
+					oldValue, hasOld := exec.Variables.Get(varName)
+					exec.Variables.Set(varName, value)
 
-					output, err := cli.ExecuteLine(command, nil)
+					output, err := exec.Execute(command, nil)
 
 					// Restore old value
 					if hasOld {
-						cli.Defaults.Set(varName, oldValue)
+						exec.Variables.Set(varName, oldValue)
 					} else {
-						cli.Defaults.Delete(varName)
+						exec.Variables.Delete(varName)
 					}
 
 					if err != nil {
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Error in loop body: %v", err)))
+						cmd.PrintErrln(fmt.Sprintf("Error in loop body: %v", err))
 						return
 					}
 
@@ -223,7 +223,7 @@ Examples:
 					case "-ge":
 						result = num1 >= num2
 					default:
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Unknown numeric operator: %s", operator)))
+						cmd.PrintErrln(fmt.Sprintf("Unknown numeric operator: %s", operator))
 						os.Exit(1)
 						return
 					}
@@ -235,7 +235,7 @@ Examples:
 					case "!=":
 						result = arg1 != arg2
 					default:
-						cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Unknown string operator: %s", operator)))
+						cmd.PrintErrln(fmt.Sprintf("Unknown string operator: %s", operator))
 						os.Exit(1)
 						return
 					}

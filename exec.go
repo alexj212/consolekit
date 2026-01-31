@@ -3,15 +3,16 @@ package consolekit
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	osexec "os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
+func AddOSExec(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 		// osexecCmd represents the exec command
@@ -26,16 +27,16 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 
 				cmdLine := strings.Fields(args[0])
 				if len(cmdLine) == 0 {
-					cmd.Printf("%s\n", cli.ErrorString("No command provided"))
+					cmd.Printf("%s\n", fmt.Sprintf("No command provided"))
 					return
 				}
 
-				osCmd := exec.Command(cmdLine[0], cmdLine[1:]...)
+				osCmd := osexec.Command(cmdLine[0], cmdLine[1:]...)
 
 				if background {
 					// Create context for cancellation
 					ctx, cancel := context.WithCancel(context.Background())
-					osCmd = exec.CommandContext(ctx, cmdLine[0], cmdLine[1:]...)
+					osCmd = osexec.CommandContext(ctx, cmdLine[0], cmdLine[1:]...)
 
 					// Create output buffer for job tracking
 					outputBuf := &bytes.Buffer{}
@@ -51,17 +52,17 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 					}
 
 					if err := osCmd.Start(); err != nil {
-						cmd.Printf("%s\n", cli.ErrorString("Error starting command in background: %v", err))
+						cmd.Printf("%s\n", fmt.Sprintf("Error starting command in background: %v", err))
 						cancel()
 						return
 					}
 
 					// Add to job manager
-					jobID := cli.JobManager.Add(args[0], ctx, cancel, osCmd)
-					cmd.Printf("%s\n", cli.SuccessString("Command started in background with PID %d (Job ID: %d)", osCmd.Process.Pid, jobID))
+					jobID := exec.JobManager.Add(args[0], ctx, cancel, osCmd)
+					cmd.Printf("%s\n", fmt.Sprintf("Command started in background with PID %d (Job ID: %d)", osCmd.Process.Pid, jobID))
 
 					// Update the job's output buffer reference
-					if job, ok := cli.JobManager.Get(jobID); ok {
+					if job, ok := exec.JobManager.Get(jobID); ok {
 						job.mu.Lock()
 						job.Output = outputBuf
 						job.mu.Unlock()
@@ -77,7 +78,7 @@ func AddOSExec(cli *CLI) func(cmd *cobra.Command) {
 					}
 
 					if err := osCmd.Run(); err != nil {
-						cmd.Printf("%s\n", cli.ErrorString("Error executing command: %v", err))
+						cmd.Printf("%s\n", fmt.Sprintf("Error executing command: %v", err))
 					}
 				}
 			},

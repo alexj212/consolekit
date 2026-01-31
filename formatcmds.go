@@ -11,7 +11,7 @@ import (
 )
 
 // AddFormatCommands adds output formatting commands
-func AddFormatCommands(cli *CLI) func(cmd *cobra.Command) {
+func AddFormatCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 	return func(rootCmd *cobra.Command) {
 		// table command - format output as table
 		var tableDelim string
@@ -113,7 +113,7 @@ Examples:
 				pattern := args[0]
 				re, err := regexp.Compile(pattern)
 				if err != nil {
-					cmd.PrintErrln(cli.ErrorString(fmt.Sprintf("Invalid pattern: %v", err)))
+					cmd.PrintErrln(fmt.Sprintf("Invalid pattern: %v", err))
 					return
 				}
 
@@ -142,7 +142,7 @@ Examples:
 
 					// Find all matches and highlight them
 					result := re.ReplaceAllStringFunc(line, func(match string) string {
-						if cli.NoColor {
+						if exec.NoColor {
 							return match
 						}
 						return colorFunc("%s", match)
@@ -202,7 +202,7 @@ Examples:
 					}
 
 					// Prompt for next action
-					cmd.Print(cli.InfoString(fmt.Sprintf("-- More (%d%%) -- [Enter=line, Space=page, q=quit]: ", (lineNum*100)/len(lines))))
+					cmd.Print(fmt.Sprintf("-- More (%d%%) -- [Enter=line, Space=page, q=quit]: ", (lineNum*100)/len(lines)))
 
 					// Note: Reading from terminal in REPL mode is complex
 					// For now, just display everything (pagination would need special terminal handling)

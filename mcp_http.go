@@ -21,7 +21,7 @@ type MCPHTTPServer struct {
 	sessions   map[string]chan []byte
 }
 
-func NewMCPHTTPServer(cli *CLI, appName, appVersion string) *MCPHTTPServer {
+func NewMCPHTTPServer(cli *CommandExecutor, appName, appVersion string) *MCPHTTPServer {
 	return &MCPHTTPServer{
 		mcp:      NewMCPServer(cli, appName, appVersion),
 		sessions: make(map[string]chan []byte),
