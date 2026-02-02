@@ -445,6 +445,47 @@ func (e *CommandExecutor) RootCmd() *cobra.Command {
 	return rootCmd
 }
 
+// GetAvailableCommands returns a list of all available command names.
+// This includes all registered commands and their subcommands.
+func (e *CommandExecutor) GetAvailableCommands() []string {
+	root := e.RootCmd()
+	commands := make([]string, 0)
+
+	// Helper function to recursively collect command names
+	var collectCommands func(*cobra.Command, string)
+	collectCommands = func(cmd *cobra.Command, prefix string) {
+		for _, subCmd := range cmd.Commands() {
+			// Skip hidden commands
+			if subCmd.Hidden {
+				continue
+			}
+
+			name := subCmd.Name()
+			if prefix != "" {
+				name = prefix + " " + name
+			}
+
+			// Add command if it has a Run function (is executable)
+			if subCmd.Run != nil || subCmd.RunE != nil {
+				commands = append(commands, name)
+			}
+
+			// Recursively collect subcommands
+			collectCommands(subCmd, name)
+		}
+	}
+
+	collectCommands(root, "")
+
+	// Also include aliases
+	e.aliases.SortedForEach(func(alias, _ string) bool {
+		commands = append(commands, alias)
+		return true // Continue iteration
+	})
+
+	return commands
+}
+
 // getCurrentUser returns the current username for logging.
 func (e *CommandExecutor) getCurrentUser() string {
 	if u, err := user.Current(); err == nil {

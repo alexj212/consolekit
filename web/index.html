@@ -3,39 +3,150 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ConsoleKit Web Service</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title id="page-title">Server Status</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            min-width: 400px;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+
+        .uptime {
+            font-size: 3em;
+            font-weight: 600;
+            margin: 20px 0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+
+        .link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .info {
+            margin-top: 20px;
+            font-size: 0.85em;
+            opacity: 0.7;
+        }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
-<header class="bg-white shadow p-4 text-center">
-    <h1 class="text-2xl font-semibold">ConsoleKit Web Service</h1>
-</header>
-
-<main class="flex-grow p-6 max-w-3xl mx-auto">
-    <p class="text-lg mb-4">
-        Welcome to ConsoleKit Web Service. This server provides HTTP and WebSocket access to ConsoleKit commands.
-    </p>
-
-    <div class="space-y-4">
-        <div class="border p-4 rounded">
-            <h2 class="text-xl font-semibold mb-2">Web Terminal</h2>
-            <p class="mb-2">Access the interactive web-based REPL terminal:</p>
-            <a href="./admin" class="text-blue-600 hover:underline">Open Terminal</a>
-        </div>
-
-        <div class="border p-4 rounded">
-            <h2 class="text-xl font-semibold mb-2">API Endpoints</h2>
-            <ul class="list-disc list-inside space-y-1">
-                <li><code>POST /login</code> - Authenticate and create session</li>
-                <li><code>POST /logout</code> - Logout and clear session</li>
-                <li><code>GET /repl</code> - WebSocket REPL connection</li>
-            </ul>
-        </div>
+<body>
+    <div class="container">
+        <h1 id="app-name">Server</h1>
+        <div class="subtitle">Status</div>
+        <div class="label">Uptime</div>
+        <div class="uptime" id="uptime">Loading...</div>
+        <div class="info" id="start-time"></div>
+        <a href="/admin" class="link">Open Terminal</a>
     </div>
-</main>
 
-<footer class="bg-white shadow p-4 text-center text-sm text-gray-600">
-    Powered by ConsoleKit
-</footer>
+    <script>
+        let uptimeSeconds = 0;
+        let startTimeStr = '';
+
+        // Load initial configuration and uptime
+        function loadStatus() {
+            fetch('/config')
+                .then(res => res.json())
+                .then(config => {
+                    document.getElementById('app-name').textContent = config.appName || 'Server';
+                    document.getElementById('page-title').textContent = (config.appName || 'Server') + ' Status';
+                    uptimeSeconds = config.uptimeSeconds || 0;
+                    startTimeStr = config.startTime || '';
+
+                    // Display start time
+                    if (startTimeStr) {
+                        const startDate = new Date(startTimeStr);
+                        document.getElementById('start-time').textContent =
+                            'Started: ' + startDate.toLocaleString();
+                    }
+
+                    // Start uptime counter
+                    updateUptime();
+                    setInterval(updateUptime, 1000);
+                })
+                .catch(err => {
+                    console.error('Failed to load status:', err);
+                    document.getElementById('uptime').textContent = 'Error';
+                });
+        }
+
+        // Update uptime display
+        function updateUptime() {
+            uptimeSeconds++;
+            const formatted = formatUptime(uptimeSeconds);
+            document.getElementById('uptime').textContent = formatted;
+        }
+
+        // Format uptime into human-readable string
+        function formatUptime(totalSeconds) {
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            if (days > 0) {
+                return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            }
+            return `${seconds}s`;
+        }
+
+        // Load status on page load
+        loadStatus();
+    </script>
 </body>
 </html>

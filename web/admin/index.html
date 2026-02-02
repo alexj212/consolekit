@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>ConsoleKit Web Terminal</title>
+    <title id="page-title">ConsoleKit Web Terminal</title>
     <link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css" />
     <style>
         body, html {
@@ -45,7 +45,32 @@
             background: #111;
             color: #0f0;
             padding: 8px 16px;
-            text-align: right;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.connected {
+            background-color: #0f0;
+            box-shadow: 0 0 8px #0f0;
+        }
+
+        .status-dot.disconnected {
+            background-color: #f00;
+            box-shadow: 0 0 8px #f00;
         }
 
         #logout-bar button {
@@ -54,6 +79,16 @@
             border: 1px solid #0f0;
             padding: 6px 12px;
             cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #logout-bar button:hover {
+            background: #333;
+        }
+
+        #login-form h2 {
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
         }
 
         #error {
@@ -66,7 +101,7 @@
 </head>
 <body>
 <div id="login-form">
-    <h2>ConsoleKit Web Terminal</h2>
+    <h2 id="login-title">ConsoleKit Web Terminal</h2>
     <input type="text" id="username" placeholder="Username" />
     <input type="password" id="password" placeholder="Password" />
     <button onclick="login()">Login</button>
@@ -75,6 +110,10 @@
 
 <div id="terminal-wrapper">
     <div id="logout-bar">
+        <div id="status-indicator">
+            <span class="status-dot connected"></span>
+            <span id="status-text">Connected</span>
+        </div>
         <button onclick="logout()">Logout</button>
     </div>
     <div id="terminal"></div>
@@ -83,6 +122,16 @@
 <script src="/node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="/node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="/node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
+<script>
+    // Load configuration on page load
+    fetch('/config')
+        .then(res => res.json())
+        .then(config => {
+            document.getElementById('page-title').textContent = config.pageTitle || 'ConsoleKit Web Terminal';
+            document.getElementById('login-title').textContent = config.appName + ' Web Terminal' || 'ConsoleKit Web Terminal';
+        })
+        .catch(err => console.error('Failed to load config:', err));
+</script>
 <script src="./index.js"></script>
 </body>
 </html>

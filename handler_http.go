@@ -38,6 +38,17 @@ type HTTPHandler struct {
 	httpUser     string
 	httpPassword string
 
+	// UI customization
+	AppName         string // Application name (default: ConsoleKit)
+	PageTitle       string // HTML page title (default: ConsoleKit Web Service)
+	WelcomeBanner   string // Welcome banner for web terminal
+	MessageOfTheDay string // MOTD for web terminal
+
+	// Session management
+	IdleTimeout    time.Duration // Disconnect after inactivity (0 = disabled)
+	MaxSessionTime time.Duration // Max session duration (0 = unlimited)
+	MaxConnections int           // Max concurrent WebSocket connections (0 = unlimited)
+
 	// Server instance
 	server    *http.Server
 	router    *mux.Router
@@ -46,6 +57,7 @@ type HTTPHandler struct {
 	once      sync.Once
 	isRunning bool
 	mu        sync.Mutex
+	startTime time.Time // Server start time for uptime calculation
 
 	// Optional custom listener (for Tailscale, etc.)
 	customListener net.Listener
@@ -53,10 +65,12 @@ type HTTPHandler struct {
 
 // WebSession represents an authenticated web session.
 type WebSession struct {
-	Username  string
-	Expires   time.Time
-	SessionID string
-	CreatedAt time.Time
+	Username     string
+	Expires      time.Time
+	SessionID    string
+	CreatedAt    time.Time
+	LastActivity time.Time
+	mu           sync.Mutex
 }
 
 // ReplMessage represents a WebSocket REPL message.
@@ -102,6 +116,7 @@ func (h *HTTPHandler) Start() error {
 		return fmt.Errorf("HTTP server already running")
 	}
 	h.isRunning = true
+	h.startTime = time.Now()
 	h.mu.Unlock()
 
 	// Setup routes
@@ -186,7 +201,8 @@ func (h *HTTPHandler) setupRoutes() {
 	// API endpoints
 	h.router.HandleFunc("/login", h.loginHandler).Methods("POST")
 	h.router.HandleFunc("/logout", h.logoutHandler).Methods("POST")
-	h.router.HandleFunc("/repl", h.replHandler).Methods("GET") // WebSocket REPL
+	h.router.HandleFunc("/config", h.configHandler).Methods("GET")  // UI configuration
+	h.router.HandleFunc("/repl", h.replHandler).Methods("GET")      // WebSocket REPL
 
 	// Serve web UI (embedded or local directory)
 	h.router.PathPrefix("/").Handler(h.fsHandler())
@@ -256,11 +272,13 @@ func (h *HTTPHandler) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Create session
 		sessionToken := h.generateSessionToken()
+		now := time.Now()
 		session := &WebSession{
-			Username:  h.httpUser,
-			SessionID: sessionToken,
-			CreatedAt: time.Now(),
-			Expires:   time.Now().Add(24 * time.Hour),
+			Username:     h.httpUser,
+			SessionID:    sessionToken,
+			CreatedAt:    now,
+			LastActivity: now,
+			Expires:      time.Now().Add(24 * time.Hour),
 		}
 		h.sessions.Set(sessionToken, session)
 
@@ -298,6 +316,57 @@ func (h *HTTPHandler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// configHandler returns UI configuration as JSON.
+func (h *HTTPHandler) configHandler(w http.ResponseWriter, r *http.Request) {
+	appName := h.AppName
+	pageTitle := h.PageTitle
+	welcome := h.WelcomeBanner
+
+	// Set defaults if not configured
+	if appName == "" {
+		appName = "ConsoleKit"
+	}
+	if pageTitle == "" {
+		pageTitle = "ConsoleKit Web Service"
+	}
+	if welcome == "" {
+		welcome = "Welcome to ConsoleKit Web Terminal"
+	}
+
+	// Calculate uptime
+	uptime := time.Since(h.startTime)
+
+	config := map[string]interface{}{
+		"appName":        appName,
+		"pageTitle":      pageTitle,
+		"welcome":        welcome,
+		"motd":           h.MessageOfTheDay,
+		"uptimeSeconds":  int(uptime.Seconds()),
+		"uptimeString":   formatUptime(uptime),
+		"startTime":      h.startTime.Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(config)
+}
+
+// formatUptime formats a duration into a human-readable uptime string
+func formatUptime(d time.Duration) string {
+	days := int(d.Hours() / 24)
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm %ds", days, hours, minutes, seconds)
+	} else if hours > 0 {
+		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
+	} else if minutes > 0 {
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", seconds)
 }
 
 // replHandler handles WebSocket REPL connections.
@@ -371,13 +440,40 @@ func (h *HTTPHandler) replHandler(w http.ResponseWriter, r *http.Request) {
 
 // runCommand executes a command and returns the output.
 func (h *HTTPHandler) runCommand(session *WebSession, input string) (string, error) {
+	// Update activity timestamp
+	session.mu.Lock()
+	session.LastActivity = time.Now()
+	session.mu.Unlock()
+
 	// Create session-specific defaults
 	scope := safemap.New[string, string]()
 	scope.Set("@http:user", session.Username)
 	scope.Set("@http:session_id", session.SessionID)
 
+	// Log command execution
+	startTime := time.Now()
+
 	// Execute command
 	output, err := h.executor.Execute(input, scope)
+
+	// Log the execution result
+	if h.executor.LogManager != nil && h.executor.LogManager.IsEnabled() {
+		duration := time.Since(startTime)
+		errStr := ""
+		if err != nil {
+			errStr = err.Error()
+		}
+		h.executor.LogManager.Log(AuditLog{
+			Command:   fmt.Sprintf("[WebSocket] %s", input),
+			Timestamp: startTime,
+			Duration:  duration,
+			Success:   err == nil,
+			Output:    output,
+			Error:     errStr,
+			User:      session.Username,
+		})
+	}
+
 	if err != nil {
 		return "", err
 	}
