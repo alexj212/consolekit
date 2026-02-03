@@ -401,11 +401,12 @@ func (h *REPLHandler) GetDisplayAdapter() DisplayAdapter {
 }
 
 // SetDisplayAdapter changes the display backend.
-// This allows switching between different REPL implementations (reeflective, bubbletea, etc.).
+// This allows switching between different REPL implementations (reeflective, custom, etc.).
 //
 // Example:
 //
-//	adapter := consolekit.NewBubbletteaAdapter("myapp")
+//	// Use a custom adapter (e.g., from examples/simple_bubbletea/)
+//	adapter := NewCustomAdapter("myapp")
 //	handler.SetDisplayAdapter(adapter)
 func (h *REPLHandler) SetDisplayAdapter(adapter DisplayAdapter) {
 	h.display = adapter

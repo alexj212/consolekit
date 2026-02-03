@@ -67,9 +67,8 @@ func main() {
 	handler := consolekit.NewREPLHandler(executor)
 
 	// By default, NewREPLHandler() uses ReflectiveAdapter (reeflective/console)
-	// To switch to a different display backend (e.g., bubbletea):
-	//   adapter := consolekit.NewBubbletteaAdapter("simple")
-	//   handler.SetDisplayAdapter(adapter)
+	// To switch to a different display backend, see examples/simple_bubbletea/
+	// for an example custom adapter implementation
 
 	// Set prompt with leading newline (helps with terminal scrolling issues)
 	handler.SetPrompt(func() string {

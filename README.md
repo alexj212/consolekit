@@ -288,7 +288,7 @@ ConsoleKit uses a clean three-layer architecture:
 │  (UI abstraction - REPL only)           │
 │                                         │
 │  • ReflectiveAdapter (default)         │
-│  • BubbletteaAdapter (optional)        │
+│  • Custom adapters (implement iface)  │
 └─────────────────────────────────────────┘
 ```
 

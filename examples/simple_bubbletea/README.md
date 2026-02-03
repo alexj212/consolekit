@@ -2,6 +2,8 @@
 
 This example demonstrates ConsoleKit with a [Bubbletea](https://github.com/charmbracelet/bubbletea) TUI (Terminal User Interface) instead of the standard reeflective/console REPL.
 
+**Note:** This example has its own `go.mod` file and is a separate Go module from the core ConsoleKit library. This keeps bubbletea dependencies isolated from the main library, reducing the dependency footprint for users who don't need TUI features.
+
 ## Features
 
 - **Beautiful TUI**: Styled terminal interface using Bubbletea and Lipgloss
@@ -16,13 +18,15 @@ This example demonstrates ConsoleKit with a [Bubbletea](https://github.com/charm
 
 ```bash
 cd examples/simple_bubbletea
-GOWORK=off go build
+go build
 ```
 
-Or using the main Makefile:
-```bash
-make simple_bubbletea
+**Note:** This example uses a `replace` directive in its `go.mod` to reference the parent ConsoleKit module:
 ```
+replace github.com/alexj212/consolekit => ../..
+```
+
+When `go.work` is present (workspace mode), the build system automatically includes both modules.
 
 ## Running
 
@@ -104,6 +108,27 @@ if len(m.output) > 100 {  // Change 100 to your preferred value
     m.output = m.output[len(m.output)-100:]
 }
 ```
+
+## Using the BubbletteaAdapter
+
+This example includes a `BubbletteaAdapter` that implements the `consolekit.DisplayAdapter` interface. You can use it in your own applications:
+
+```go
+// Create executor
+executor, _ := consolekit.NewCommandExecutor("myapp", customizer)
+
+// Create REPL handler with bubbletea adapter
+handler := consolekit.NewREPLHandler(executor)
+
+// Replace default adapter with bubbletea
+adapter := NewBubbletteaAdapter("myapp")
+handler.SetDisplayAdapter(adapter)
+
+// Start REPL
+handler.Start()
+```
+
+Alternatively, you can use Bubbletea directly without the adapter (as shown in `main.go`).
 
 ## Architecture
 

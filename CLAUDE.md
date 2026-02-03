@@ -62,9 +62,31 @@ go test ./...
    - Parses commands using `github.com/alexj212/console/parser` with shellquote support
    - Executes through `executeCommands` with pipe support
 
-### reeflective/console Integration
+### Display Adapter Architecture
 
-The REPL is powered by `reeflective/console` which provides:
+ConsoleKit uses a **DisplayAdapter** interface to abstract the REPL/display layer from the command execution engine:
+
+- **ReflectiveAdapter** (display_reeflective.go) - **Default adapter**, uses `reeflective/console`
+  - Full readline support with tab completion
+  - Command history with arrow key navigation
+  - Cobra integration for automatic completion
+  - Production-ready, recommended for most applications
+
+- **BubbletteaAdapter** - **Optional adapter** (in `examples/simple_bubbletea/`)
+  - Beautiful TUI using `charmbracelet/bubbletea` and `lipgloss`
+  - Styled terminal interface with custom layouts
+  - **Separate Go module** to avoid pulling bubbletea deps into core library
+  - See `examples/simple_bubbletea/` for implementation and usage
+
+**Key Points:**
+- Core library only depends on `reeflective/console` (default adapter)
+- Bubbletea is optional and lives in its own module (`examples/simple_bubbletea/go.mod`)
+- Applications can implement custom adapters by implementing `DisplayAdapter` interface
+- Use `handler.SetDisplayAdapter()` to switch adapters at runtime
+
+### reeflective/console Integration (Default)
+
+The default REPL is powered by `reeflective/console` which provides:
 - **Automatic completion** for commands, subcommands, and flags via Cobra integration
 - **Pre-command hooks** for token replacement and alias expansion before execution
 - **Post-command hooks** for history management
@@ -577,8 +599,14 @@ Commands use `PostRun` hooks to reset flags via `ResetAllFlags` and `ResetHelpFl
 
 ## Important Implementation Notes
 
-### REPL Library Migration
+### REPL Library Migration & Display Adapters
 The library was migrated from `github.com/alexj212/console` → `c-bata/go-prompt` → **`reeflective/console`**. The parser from console is still used for pipe/redirection support, but the REPL interface is now reeflective/console which provides automatic Cobra integration and completion.
+
+**DisplayAdapter Refactoring (2026-02):**
+- `BubbletteaAdapter` was moved to a separate module (`examples/simple_bubbletea/go.mod`)
+- Core library only depends on `reeflective/console` to reduce dependency footprint
+- Bubbletea dependencies (bubbletea, lipgloss) removed from root `go.mod`
+- Applications requiring bubbletea can implement their own adapter or use the example as reference
 
 ### Command Parser Quote Handling
 The parser now uses `github.com/kballard/go-shellquote` for proper quote and escape handling. This fixes issues where special characters (`|`, `>`, `;`) inside quoted strings were incorrectly treated as operators.

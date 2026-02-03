@@ -1,4 +1,4 @@
-package consolekit
+package main
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/alexj212/consolekit"
 	"github.com/spf13/cobra"
 )
 
@@ -18,10 +19,10 @@ type BubbletteaAdapter struct {
 	appName     string
 	historyFile string
 	promptFunc  func() string
-	config      DisplayConfig
+	config      consolekit.DisplayConfig
 	buildCmd    func() *cobra.Command
 	hooks       []func([]string) ([]string, error)
-	executor    *CommandExecutor
+	executor    *consolekit.CommandExecutor
 }
 
 // Bubbletea styles
@@ -49,7 +50,7 @@ type bubbletteaModel struct {
 func NewBubbletteaAdapter(appName string) *BubbletteaAdapter {
 	return &BubbletteaAdapter{
 		appName: appName,
-		config:  DefaultDisplayConfig(appName),
+		config:  consolekit.DefaultDisplayConfig(appName),
 		promptFunc: func() string {
 			return appName + " > "
 		},
@@ -107,12 +108,12 @@ func (b *BubbletteaAdapter) SetHistoryFile(path string) {
 }
 
 // Configure applies display-specific options.
-func (b *BubbletteaAdapter) Configure(config DisplayConfig) {
+func (b *BubbletteaAdapter) Configure(config consolekit.DisplayConfig) {
 	b.config = config
 }
 
 // SetExecutor sets the command executor (called by REPLHandler)
-func (b *BubbletteaAdapter) SetExecutor(exec *CommandExecutor) {
+func (b *BubbletteaAdapter) SetExecutor(exec *consolekit.CommandExecutor) {
 	b.executor = exec
 }
 

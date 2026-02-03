@@ -1,7 +1,9 @@
-package consolekit
+package main
 
 import (
 	"testing"
+
+	"github.com/alexj212/consolekit"
 )
 
 func TestBubbletteaAdapter_Creation(t *testing.T) {
@@ -16,7 +18,7 @@ func TestBubbletteaAdapter_Creation(t *testing.T) {
 	}
 
 	// Verify it implements DisplayAdapter interface
-	var _ DisplayAdapter = adapter
+	var _ consolekit.DisplayAdapter = adapter
 }
 
 func TestBubbletteaAdapter_SetPrompt(t *testing.T) {
@@ -47,7 +49,7 @@ func TestBubbletteaAdapter_SetHistoryFile(t *testing.T) {
 func TestBubbletteaAdapter_SetExecutor(t *testing.T) {
 	adapter := NewBubbletteaAdapter("test")
 
-	executor, err := NewCommandExecutor("test", nil)
+	executor, err := consolekit.NewCommandExecutor("test", nil)
 	if err != nil {
 		t.Fatalf("Failed to create executor: %v", err)
 	}
@@ -62,7 +64,7 @@ func TestBubbletteaAdapter_SetExecutor(t *testing.T) {
 func TestBubbletteaAdapter_Configure(t *testing.T) {
 	adapter := NewBubbletteaAdapter("test")
 
-	config := DisplayConfig{
+	config := consolekit.DisplayConfig{
 		AppName: "custom_app",
 	}
 
