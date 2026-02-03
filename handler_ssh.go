@@ -131,7 +131,7 @@ func (h *SSHHandler) SetTransportConfig(config *TransportConfig) {
 	h.config = config
 }
 
-// SetCustomListener sets a custom listener (e.g., Tailscale).
+// SetCustomListener sets a custom listener.
 func (h *SSHHandler) SetCustomListener(listener net.Listener) {
 	h.listener = listener
 }

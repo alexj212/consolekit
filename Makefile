@@ -116,9 +116,9 @@ tools: ## install dependent tools for code analysis
 ##
 ####################################################################################################################
 
-all: simple simple_bubbletea ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
+all: simple simple_bubbletea ssh_server multi_transport production_server rest_api ## build all example binaries
 
-binaries: simple simple_bubbletea ssh_server multi_transport production_server rest_api tailscale_http ## build all example binaries
+binaries: simple simple_bubbletea ssh_server multi_transport production_server rest_api ## build all example binaries
 
 create_dir:
 	@mkdir -p ./build
@@ -164,11 +164,6 @@ production_server: build_info create_dir ## build production_server example bina
 rest_api: build_info create_dir ## build rest_api example binary
 	@echo "build rest_api"
 	CGO_ENABLED=0 go build -o ./build/rest_api -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/rest_api
-	@echo ''
-
-tailscale_http: build_info create_dir ## build tailscale_http example binary
-	@echo "build tailscale_http"
-	CGO_ENABLED=0 go build -o ./build/tailscale_http -a -ldflags '$(COMPILE_LDFLAGS)' github.com/alexj212/consolekit/examples/tailscale_http
 	@echo ''
 
 

@@ -41,49 +41,13 @@ ssh admin@localhost -p 2222
 - PTY support for interactive commands
 - Session isolation
 
-### 3. tailscale_http/ - Tailscale HTTP Example
-HTTP/WebSocket server with optional Tailscale integration.
-
-```bash
-cd tailscale_http
-go build
-
-# Without Tailscale (local only)
-./tailscale_http
-
-# With Tailscale (requires auth key)
-TS_AUTH_KEY="tskey-auth-..." ./tailscale_http
-```
-
-Then access:
-- Web Terminal: http://localhost:8080/admin
-- Username: admin
-- Password: secret123
-
-**Features:**
-- Web-based xterm.js terminal
-- WebSocket REPL connection
-- Session authentication
-- Tailscale integration for secure remote access
-- Embedded web UI
-
-**Tailscale Setup:**
-1. Create auth key at https://login.tailscale.com/admin/settings/keys
-2. Set TS_AUTH_KEY environment variable
-3. Access server via Tailscale IP from anywhere
-
-### 4. multi_transport/ - All Transports Example
+### 3. multi_transport/ - All Transports Example
 Runs SSH, HTTP, and local REPL simultaneously.
 
 ```bash
 cd multi_transport
 go build
-
-# Without Tailscale
 ./multi_transport
-
-# With Tailscale
-TS_AUTH_KEY="tskey-auth-..." ./multi_transport
 ```
 
 **Access Methods:**
@@ -128,7 +92,6 @@ All examples include:
 | Multi-Session | ✗ | ✓ | ✓ |
 | Authentication | ✗ | ✓ | ✓ |
 | Web Browser | ✗ | ✗ | ✓ |
-| Tailscale | ✗ | ✓ | ✓ |
 
 ## Security Considerations
 
@@ -136,7 +99,6 @@ All examples include:
 - Use strong passwords or public key authentication
 - Limit allowed commands via TransportConfig
 - Consider firewall rules for port 2222
-- Use Tailscale for secure remote access
 
 ### HTTP Server
 - Always use HTTPS in production (reverse proxy)
@@ -144,14 +106,6 @@ All examples include:
 - Implement rate limiting for login endpoint
 - Use strong passwords
 - Consider 2FA for production
-- Use Tailscale for secure remote access
-
-### Tailscale
-- Provides encrypted WireGuard tunnels
-- Built-in authentication via Tailscale account
-- No port forwarding required
-- Audit logging via Tailscale admin console
-- Access controls via Tailscale ACLs
 
 ## Development Tips
 
@@ -205,15 +159,8 @@ executor.FileHandler = &RestrictedFileHandler{basePath: "/var/app"}
 - Try `ws://` instead of `wss://` for local testing
 - Ensure session cookie is set after login
 
-### Tailscale Not Working
-- Verify TS_AUTH_KEY is valid
-- Check Tailscale status: `tailscale status`
-- Ensure node appears in Tailscale admin console
-- Check firewall allows Tailscale daemon
-
 ## Further Reading
 
 - [ConsoleKit Documentation](../CLAUDE.md)
 - [MCP Integration](../MCP_INTEGRATION.md)
 - [Security Guide](../SECURITY.md)
-- [Tailscale Documentation](https://tailscale.com/kb/)

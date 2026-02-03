@@ -476,4 +476,3 @@ ConsoleKit includes 6 comprehensive example applications. See **[EXAMPLES_REFERE
 - [Multi-Transport](EXAMPLES_REFERENCE.md#3-multi-transport-example-examplesmulti_transport) - All transports
 - [Production Server](EXAMPLES_REFERENCE.md#4-production-server-example-examplesproduction_server) - Enterprise deployment
 - [REST API](EXAMPLES_REFERENCE.md#5-rest-api-example-examplesrest_api) - HTTP API integration
-- [Tailscale HTTP](EXAMPLES_REFERENCE.md#6-tailscale-http-example-examplestailscale_http) - Secure mesh networking

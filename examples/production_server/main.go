@@ -33,10 +33,6 @@ type Config struct {
 	SSHPort      string
 	SSHPassword  string
 
-	// Tailscale settings
-	TailscaleAuthKey string
-	TailscaleEnabled bool
-
 	// Feature flags
 	EnableHTTP bool
 	EnableSSH  bool
@@ -56,9 +52,6 @@ func loadConfig() *Config {
 		HTTPPassword: getEnv("HTTP_PASSWORD", "changeme"),
 		SSHPort:      getEnv("SSH_PORT", "2222"),
 		SSHPassword:  getEnv("SSH_PASSWORD", "changeme"),
-
-		TailscaleAuthKey: os.Getenv("TS_AUTH_KEY"),
-		TailscaleEnabled: os.Getenv("TS_AUTH_KEY") != "",
 
 		EnableHTTP: getEnv("ENABLE_HTTP", "true") == "true",
 		EnableSSH:  getEnv("ENABLE_SSH", "true") == "true",
@@ -257,10 +250,6 @@ func printBanner(cfg *Config) {
 
 	if cfg.EnableREPL {
 		fmt.Printf("  Local REPL    : Enabled\n")
-	}
-
-	if cfg.TailscaleEnabled {
-		fmt.Printf("  Tailscale     : Enabled\n")
 	}
 
 	if cfg.LogCommands {

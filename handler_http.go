@@ -59,7 +59,7 @@ type HTTPHandler struct {
 	mu        sync.Mutex
 	startTime time.Time // Server start time for uptime calculation
 
-	// Optional custom listener (for Tailscale, etc.)
+	// Optional custom listener
 	customListener net.Listener
 }
 
@@ -103,7 +103,7 @@ func (h *HTTPHandler) SetTransportConfig(config *TransportConfig) {
 	h.config = config
 }
 
-// SetCustomListener sets a custom network listener (e.g., for Tailscale).
+// SetCustomListener sets a custom network listener.
 func (h *HTTPHandler) SetCustomListener(listener net.Listener) {
 	h.customListener = listener
 }
@@ -135,7 +135,7 @@ func (h *HTTPHandler) Start() error {
 		IdleTimeout:       300 * time.Second,
 	}
 
-	// Use custom listener if provided (for Tailscale, etc.)
+	// Use custom listener if provided
 	var listener net.Listener
 	var err error
 

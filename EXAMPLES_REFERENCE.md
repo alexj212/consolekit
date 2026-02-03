@@ -12,10 +12,9 @@ ConsoleKit includes 6 example applications demonstrating different use cases and
 |---------|-------------|------------|----------|
 | **simple** | Basic REPL application | REPL only | Quick start, learning basics |
 | **ssh_server** | SSH server with authentication | SSH only | Remote CLI access |
-| **multi_transport** | All transports simultaneously | REPL + SSH + HTTP + Tailscale | Production multi-access |
+| **multi_transport** | All transports simultaneously | REPL + SSH + HTTP | Production multi-access |
 | **production_server** | Production-ready server | SSH + HTTP | Enterprise deployment |
 | **rest_api** | HTTP REST API wrapper | HTTP only | API integration |
-| **tailscale_http** | Tailscale-secured HTTP | HTTP (Tailscale) | Secure mesh networking |
 
 ---
 
@@ -217,13 +216,12 @@ Each SSH connection gets:
 ## 3. Multi-Transport Example (`examples/multi_transport`)
 
 ### Description
-Comprehensive example running all transports simultaneously: REPL, SSH, HTTP/WebSocket, and optional Tailscale integration.
+Comprehensive example running all transports simultaneously: REPL, SSH, HTTP/WebSocket.
 
 ### Features
 - All transports running concurrently
 - Shared command executor (state synchronized)
 - Graceful shutdown on SIGINT/SIGTERM
-- Optional Tailscale mesh networking
 - Web UI for HTTP transport
 
 ### Usage
@@ -235,9 +233,6 @@ go build
 
 # Run all transports (REPL + SSH + HTTP)
 ./multi_transport
-
-# Run with Tailscale integration
-TS_AUTH_KEY=tskey-auth-xxxxx ./multi_transport
 
 # Custom ports
 SSH_PORT=2200 HTTP_PORT=8888 ./multi_transport
@@ -251,8 +246,6 @@ SSH_PORT=2200 HTTP_PORT=8888 ./multi_transport
 | `HTTP_PORT` | `8080` | HTTP server port |
 | `HTTP_USER` | `admin` | HTTP basic auth username |
 | `HTTP_PASS` | `password` | HTTP basic auth password |
-| `TS_AUTH_KEY` | _(none)_ | Tailscale auth key (optional) |
-| `TS_HOSTNAME` | `consolekit-multi` | Tailscale node hostname |
 
 ### Access Points
 
@@ -286,15 +279,6 @@ curl -u admin:password http://localhost:8080/execute \
 // Connect to WebSocket
 const ws = new WebSocket('ws://localhost:8080/ws');
 ws.send(JSON.stringify({command: 'print "Hello"'}));
-```
-
-#### 5. Tailscale (if configured)
-```bash
-# SSH via Tailscale hostname
-ssh consolekit-multi
-
-# HTTP via Tailscale
-curl https://consolekit-multi/execute
 ```
 
 ### Shared State Example
@@ -643,70 +627,6 @@ Content-Type: application/json
 
 ---
 
-## 6. Tailscale HTTP Example (`examples/tailscale_http`)
-
-### Description
-HTTP server secured with Tailscale mesh networking - no public internet exposure.
-
-### Features
-- HTTP server accessible only via Tailscale
-- Automatic HTTPS via Tailscale
-- Zero-config networking
-- Web UI included
-- Perfect for private tools
-
-### Usage
-
-```bash
-# Build
-cd examples/tailscale_http
-go build
-
-# Run (requires Tailscale auth key)
-TS_AUTH_KEY=tskey-auth-xxxxxxxxxxxxx ./tailscale_http
-
-# Optional: custom hostname
-TS_HOSTNAME=my-consolekit TS_AUTH_KEY=tskey-xxx ./tailscale_http
-```
-
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TS_AUTH_KEY` | **Yes** | Tailscale auth key from admin panel |
-| `TS_HOSTNAME` | No | Tailscale hostname (default: `consolekit-http`) |
-| `HTTP_PORT` | No | HTTP port (default: `8080`) |
-
-### Getting a Tailscale Auth Key
-
-1. Go to https://login.tailscale.com/admin/settings/keys
-2. Generate an auth key
-3. Copy and use in `TS_AUTH_KEY` environment variable
-
-### Access
-
-Once running, access from any device on your Tailscale network:
-
-```bash
-# Via Tailscale hostname
-curl https://consolekit-http/execute \
-  -X POST \
-  -d '{"command": "print \"Hello\""}'
-
-# Web UI
-open https://consolekit-http
-```
-
-### Security Benefits
-
-- ✅ No public internet exposure
-- ✅ Automatic HTTPS
-- ✅ Tailscale ACLs apply
-- ✅ Works behind firewalls/NAT
-- ✅ Encrypted mesh networking
-
----
-
 ## Common Command-Line Patterns
 
 ### All Examples Support
@@ -738,17 +658,16 @@ All examples follow this priority for configuration:
 
 ## Comparison Matrix
 
-| Feature | simple | ssh_server | multi_transport | production_server | rest_api | tailscale_http |
-|---------|--------|------------|-----------------|-------------------|----------|----------------|
-| REPL | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| SSH | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| HTTP | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| WebSocket | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| Tailscale | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
-| Env Config | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Logging | Basic | Basic | Structured | Structured | Structured | Structured |
-| Auth | N/A | Multiple | Multiple | Multiple | API Key | Tailscale |
-| Production Ready | ❌ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
+| Feature | simple | ssh_server | multi_transport | production_server | rest_api |
+|---------|--------|------------|-----------------|-------------------|----------|
+| REPL | ✅ | ❌ | ✅ | ❌ | ❌ |
+| SSH | ❌ | ✅ | ✅ | ✅ | ❌ |
+| HTTP | ❌ | ❌ | ✅ | ✅ | ✅ |
+| WebSocket | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Env Config | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Logging | Basic | Basic | Structured | Structured | Structured |
+| Auth | N/A | Multiple | Multiple | Multiple | API Key |
+| Production Ready | ❌ | ⚠️ | ⚠️ | ✅ | ✅ |
 
 ---
 
@@ -762,7 +681,6 @@ All examples follow this priority for configuration:
 ### Production
 - Use **production_server** for internal tools
 - Use **rest_api** for API integration
-- Use **tailscale_http** for secure remote access
 
 ### Testing
 ```bash
@@ -793,18 +711,6 @@ curl -v -u admin:password http://localhost:8080/health
 
 # Check environment
 echo $HTTP_USER $HTTP_PASS
-```
-
-### Tailscale Not Connecting
-```bash
-# Verify auth key
-echo $TS_AUTH_KEY
-
-# Check Tailscale status
-tailscale status
-
-# View logs
-journalctl -u tailscaled -f
 ```
 
 ---

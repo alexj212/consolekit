@@ -516,7 +516,6 @@ Ensure `Content-Type: application/json` header is set in requests.
 
 ## See Also
 
-- [Tailscale HTTP Example](../tailscale_http/) - Secure remote API access
 - [Multi-Transport Example](../multi_transport/) - Combined transports
 - [SSH Server Example](../ssh_server/) - SSH access
 - [Main Documentation](../../CLAUDE.md) - Full ConsoleKit documentation

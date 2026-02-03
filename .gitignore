@@ -17,6 +17,5 @@ examples/rest_api/rest_api
 examples/simple/simple
 examples/simple_bubbletea/simple_bubbletea
 examples/ssh_server/ssh_server
-examples/tailscale_http/tailscale_http
 examples/simple_console/simple
 examples/simple_bufio/simple-bufio

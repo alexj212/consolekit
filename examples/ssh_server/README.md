@@ -173,7 +173,6 @@ config := &consolekit.TransportConfig{
 2. **Prefer Public Keys**: Disable password auth in production
 3. **Firewall Rules**: Restrict SSH port to known IPs
 4. **Logging**: Enable audit logging for all commands
-5. **Tailscale**: Use Tailscale for secure remote access
 
 ### Public Key Only
 
@@ -301,5 +300,4 @@ PasswordAuth: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, er
 ## See Also
 
 - [Multi-Transport Example](../multi_transport/) - SSH + HTTP + REPL
-- [Tailscale HTTP Example](../tailscale_http/) - Secure remote access
 - [Main Documentation](../../CLAUDE.md) - Full ConsoleKit documentation

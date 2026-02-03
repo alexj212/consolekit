@@ -81,7 +81,6 @@ All configuration via environment variables:
 |----------|---------|-------------|
 | `LOG_COMMANDS` | `true` | Enable command logging |
 | `LOG_FILE` | `/var/log/consolekit-commands.log` | Log file path |
-| `TS_AUTH_KEY` | - | Tailscale auth key (optional) |
 
 ### Example Configuration
 
@@ -450,15 +449,6 @@ config := &consolekit.TransportConfig{
 sshHandler.SetTransportConfig(config)
 ```
 
-### 5. Tailscale for Secure Access
-
-```bash
-# Get Tailscale auth key from https://login.tailscale.com/admin/settings/keys
-
-# Run with Tailscale
-TS_AUTH_KEY=tskey-auth-xxx ./production-server
-```
-
 ## Monitoring
 
 ### Health Checks
@@ -589,5 +579,4 @@ services:
 
 - [REST API Example](../rest_api/) - REST API integration
 - [SSH Server Example](../ssh_server/) - SSH-only deployment
-- [Tailscale Example](../tailscale_http/) - Tailscale integration
 - [Multi-Transport Example](../multi_transport/) - All transports
