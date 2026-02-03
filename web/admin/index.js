@@ -242,14 +242,29 @@ function startTerminal() {
     history = loadHistory();  // Load persistent history
     historyIndex = history.length;
 
+    // Determine WebSocket protocol (ws or wss) based on page protocol
+    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = wsProtocol + "//" + location.host + "/repl";
+
+    console.log("[DEBUG] Attempting WebSocket connection");
+    console.log("[DEBUG] Page URL:", location.href);
+    console.log("[DEBUG] Page protocol:", location.protocol);
+    console.log("[DEBUG] Page host:", location.host);
+    console.log("[DEBUG] WebSocket URL:", wsUrl);
+
     try {
-        socket = new WebSocket("ws://" + location.host + "/repl");
+        socket = new WebSocket(wsUrl);
+        console.log("[DEBUG] WebSocket object created successfully");
     } catch (err) {
-        cleanupAndShowLogin("Failed to connect to server.");
+        console.error("[DEBUG] Failed to create WebSocket:", err);
+        console.error("[DEBUG] Error name:", err.name);
+        console.error("[DEBUG] Error message:", err.message);
+        cleanupAndShowLogin("Failed to connect to server. See console for details.");
         return;
     }
 
     socket.onopen = function() {
+        console.log("[DEBUG] WebSocket connection opened successfully");
         updateStatus(true);
     };
 
@@ -290,16 +305,24 @@ function startTerminal() {
         }
     };
 
-    socket.onclose = function () {
+    socket.onclose = function (event) {
+        console.log("[DEBUG] WebSocket closed");
+        console.log("[DEBUG] Close code:", event.code);
+        console.log("[DEBUG] Close reason:", event.reason);
+        console.log("[DEBUG] Was clean:", event.wasClean);
         updateStatus(false);
         term.write("\r\n[Session closed]\r\n");
         setTimeout(() => cleanupAndShowLogin("Connection lost."), 1000);
     };
 
-    socket.onerror = function () {
+    socket.onerror = function (event) {
+        console.error("[DEBUG] WebSocket error occurred");
+        console.error("[DEBUG] Error event:", event);
+        console.error("[DEBUG] Socket readyState:", socket.readyState);
+        console.error("[DEBUG] Socket URL:", socket.url);
         updateStatus(false);
         term.write("\r\n[WebSocket error]\r\n");
-        setTimeout(() => cleanupAndShowLogin("WebSocket connection error."), 1000);
+        setTimeout(() => cleanupAndShowLogin("WebSocket connection error. Check console."), 1000);
     };
 
     window.addEventListener("resize", () => {
