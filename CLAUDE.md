@@ -14,26 +14,32 @@ The library is built on top of `spf13/cobra` for command management and `reeflec
 # Build the library
 go build
 
-# Run the example application
-cd examples/simple
+# Run the example applications
+cd examples/simple_console
 go build
+./simple_console
+
+# Run minimal CLI example (showcases modular command selection)
+cd examples/minimal_cli
+go build
+./minimal_cli
 
 # Run in REPL mode (no arguments)
-./simple
+./simple_console
 
 # Run a command directly (command-line mode)
-./simple mcp info
-./simple version
-./simple print "Hello World"
+./simple_console mcp info
+./simple_console version
+./simple_console print "Hello World"
 
 # Start MCP server for external integration
-./simple mcp start
+./simple_console mcp start
 
 # Run tests (if available)
 go test ./...
 ```
 
-**Entry Point**: Applications should use `cli.Run()` as the entry point, which automatically:
+**Entry Point**: Applications should use `handler.Run()` as the entry point, which automatically:
 - Executes command-line arguments if provided (e.g., `./app mcp start`)
 - Starts the REPL if no arguments are provided (e.g., `./app`)
 
@@ -109,11 +115,70 @@ Execution order: Aliases → Defaults → Custom VariableExpanders → Built-in 
 
 **Security Note**: The `@exec:` token allows arbitrary command execution. Recursion is limited to 10 levels to prevent stack overflow attacks.
 
-### Command Module System
+### Modular Command System
 
-Commands are organized into modular functions that return command registration functions:
+**Phase 1 Feature**: ConsoleKit provides a modular command selection system, allowing applications to include only the commands they need.
 
-- **base.go**: Core commands (`cls`, `exit`, `print`, `date`, `http`, `sleep`, `wait`, `repeat`, `waitfor`, `set`, `if`)
+**Documentation**: See [COMMAND_GROUPS.md](COMMAND_GROUPS.md) for complete documentation.
+
+#### Convenience Bundles
+
+- `AddAllCmds(exec)` - All commands (equivalent to `AddBuiltinCommands()`)
+- `AddStandardCmds(exec)` - Recommended defaults (excludes advanced integrations)
+- `AddMinimalCmds(exec)` - Core + variables + scripting only
+- `AddDeveloperCmds(exec)` - Standard + developer features (templates, prompts, logging)
+- `AddAutomationCmds(exec)` - Optimized for automation (no interactive features)
+
+#### Individual Command Groups
+
+Commands are organized into logical groups that can be included selectively:
+
+- **Core**: `AddCoreCmds` - cls, exit, print, date
+- **Variables**: `AddVariableCmds` - let, unset, vars, inc, dec
+- **Aliases**: `AddAliasCmds` - alias management
+- **History**: `AddHistoryCmds` - history and bookmarks
+- **Config**: `AddConfigCmds` - configuration management
+- **Scripting**: `AddScriptingCmds` / `AddRun` - script execution
+- **Control Flow**: `AddControlFlowCmds` - if, repeat, while, for, case, test
+- **OS Exec**: `AddOSExecCmds` - osexec
+- **Jobs**: `AddJobCmds` - background job management
+- **Schedule**: `AddScheduleCmds` - task scheduling
+- **File Utils**: `AddFileUtilCmds` - cat, grep, env
+- **Data**: `AddDataManipulationCmds` - json, yaml, csv
+- **Format**: `AddFormatCmds` - table, column, highlight, page
+- **Pipeline**: `AddPipelineCmds` - tee
+- **Clipboard**: `AddClipboardCmds` - clip, paste
+- **Templates**: `AddTemplateCmds` - template system
+- **Interactive**: `AddInteractiveCmds` - prompts
+- **Logging**: `AddLoggingCmds` - audit logging
+- **Network**: `AddNetworkCmds` - http
+- **Time**: `AddTimeCmds` - sleep, wait, waitfor, watch
+- **Notifications**: `AddNotificationCmds` - notify
+- **MCP**: `AddMCPCmds` - MCP integration
+
+#### Usage Example
+
+```go
+customizer := func(exec *consolekit.CommandExecutor) error {
+    // Option 1: Use a convenience bundle
+    exec.AddCommands(consolekit.AddStandardCmds(exec))
+
+    // Option 2: Pick specific groups
+    exec.AddCommands(consolekit.AddCoreCmds(exec))
+    exec.AddCommands(consolekit.AddVariableCmds(exec))
+    exec.AddCommands(consolekit.AddNetworkCmds(exec))
+
+    return nil
+}
+```
+
+See `examples/minimal_cli` for a complete example of selective command inclusion.
+
+### Command Module Files
+
+Commands are organized into modular files that provide registration functions:
+
+- **base.go**: Core commands (`cls`, `exit`, `print`, `date`), network (`http`), time (`sleep`, `wait`, `waitfor`), and basic control flow (`repeat`, `set`, `if`)
   - Note: The `check` command was removed due to uninitialized data dependency
 - **alias.go**: Alias management system with file persistence (`~/.{appname}.aliases`)
   - Aliases are now per-instance, not global

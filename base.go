@@ -14,9 +14,11 @@ import (
 
 const ClsSeq = "\033[H\033[2J"
 
+// AddBaseCmds registers essential core commands: cls, exit, print, date
+// These are the minimal commands needed for basic CLI operation.
 func AddBaseCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
-
 	return func(rootCmd *cobra.Command) {
+		// cls command - clear screen
 		var clsCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf(ClsSeq)
 		}
@@ -24,12 +26,13 @@ func AddBaseCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		var clsCmd = &cobra.Command{
 			Use:     "cls",
 			Aliases: []string{"clear"},
-			Short: "Clear the screen",
-			Long:  `Clear the screen`,
-			Run:   clsCmdFunc,
+			Short:   "Clear the screen",
+			Long:    `Clear the screen`,
+			Run:     clsCmdFunc,
 		}
 		rootCmd.AddCommand(clsCmd)
 
+		// exit command - exit the program
 		var exitCmdFunc = func(cmd *cobra.Command, args []string) {
 			code := 0
 
@@ -42,20 +45,14 @@ func AddBaseCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		var exitCmd = &cobra.Command{
 			Use:     "exit {code}",
 			Short:   "Exit the program",
-			Aliases: []string{"x", "quit", "q", "x"},
-			Long: `exit the program
-`,
-			Args: cobra.MaximumNArgs(1),
-			Run:  exitCmdFunc,
+			Aliases: []string{"x", "quit", "q"},
+			Long:    `exit the program`,
+			Args:    cobra.MaximumNArgs(1),
+			Run:     exitCmdFunc,
 		}
 		rootCmd.AddCommand(exitCmd)
-	}
-}
 
-func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
-
-	return func(rootCmd *cobra.Command) {
-
+		// print command - display message
 		var printCmdFunc = func(cmd *cobra.Command, args []string) {
 			line := strings.Join(args, " ")
 
@@ -75,6 +72,7 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		}
 		rootCmd.AddCommand(printCmd)
 
+		// date command - display current date/time
 		var dateCmdFunc = func(cmd *cobra.Command, args []string) {
 			cmd.Printf("%s\n", time.Now().Format(time.RFC3339))
 		}
@@ -84,11 +82,14 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 			Short: "print date",
 			Run:   dateCmdFunc,
 		}
-
 		rootCmd.AddCommand(dateCmd)
+	}
+}
 
+// AddNetworkCommands registers network-related commands: http
+func AddNetworkCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
+	return func(rootCmd *cobra.Command) {
 		var httpCmdFunc = func(cmd *cobra.Command, args []string) {
-
 			cmd.Printf("http call to %s\n", args[0])
 			data, respCode, err := FetchURLContent(cmd, args[0])
 			if err != nil {
@@ -96,7 +97,7 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 				return
 			}
 			cmd.Printf("\n%s\n", data)
-		} //httpCmdFunc
+		}
 
 		var httpCmd = &cobra.Command{
 			Use:   "http {url}",
@@ -108,6 +109,14 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		httpCmd.Flags().BoolP("show-status_code", "", false, "show status_code")
 		httpCmd.Flags().BoolP("show-details", "", false, "show details")
 
+		rootCmd.AddCommand(httpCmd)
+	}
+}
+
+// AddTimeCommands registers time-related commands: sleep, wait, waitfor
+func AddTimeCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
+	return func(rootCmd *cobra.Command) {
+		// sleep command
 		var sleepCmd = &cobra.Command{
 			Use:     "sleep [--quiet] {secs}",
 			Short:   "sleep {n} seconds with optional progress updates",
@@ -115,15 +124,14 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 			Example: "sleep 5\nsleep 60\nsleep --quiet 30",
 			Args:    cobra.ExactArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
-
 				delay, err := strconv.Atoi(args[0])
 				if err != nil {
 					cmd.Printf("Invalid delay %s\n", args[0])
 					return
 				}
-				
+
 				quiet, _ := cmd.Flags().GetBool("quiet")
-				
+
 				// For short sleeps (< 5 seconds) or quiet mode, just sleep without updates
 				if delay < 5 || quiet {
 					if !quiet {
@@ -132,12 +140,12 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 					time.Sleep(time.Duration(delay) * time.Second)
 					return
 				}
-				
+
 				// For longer sleeps, show progress updates
 				startTime := time.Now()
 				endTime := startTime.Add(time.Duration(delay) * time.Second)
-				cmd.Printf("%s\n", fmt.Sprintf("⏱  Sleeping for %d seconds (until %s)", delay, endTime.Format("15:04:05")))
-				
+				cmd.Printf("⏱  Sleeping for %d seconds (until %s)\n", delay, endTime.Format("15:04:05"))
+
 				// Determine update interval based on total duration
 				updateInterval := time.Second
 				if delay >= 300 {
@@ -145,37 +153,37 @@ func AddScriptingCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 				} else if delay >= 60 {
 					updateInterval = 10 * time.Second // Every 10 seconds for sleeps >= 1 minute
 				} else if delay >= 30 {
-					updateInterval = 5 * time.Second  // Every 5 seconds for sleeps >= 30 seconds
+					updateInterval = 5 * time.Second // Every 5 seconds for sleeps >= 30 seconds
 				} else {
-					updateInterval = 2 * time.Second  // Every 2 seconds for sleeps >= 5 seconds
+					updateInterval = 2 * time.Second // Every 2 seconds for sleeps >= 5 seconds
 				}
-				
+
 				ticker := time.NewTicker(updateInterval)
 				defer ticker.Stop()
-				
+
 				done := time.After(time.Duration(delay) * time.Second)
-				
+
 				for {
 					select {
 					case <-done:
 						elapsed := time.Since(startTime)
-						cmd.Printf("%s\n", fmt.Sprintf("✓ Sleep completed - waited %s", HumanizeDuration(elapsed, false)))
+						cmd.Printf("✓ Sleep completed - waited %s\n", HumanizeDuration(elapsed, false))
 						return
 					case <-ticker.C:
 						elapsed := time.Since(startTime)
 						remaining := time.Until(endTime)
 						percentage := int((float64(elapsed) / float64(delay*int(time.Second))) * 100)
-						cmd.Printf("%s\n", fmt.Sprintf("  ⏳ Progress: %s elapsed, %s remaining (%d%%)", 
+						cmd.Printf("  ⏳ Progress: %s elapsed, %s remaining (%d%%)\n",
 							HumanizeDuration(elapsed, false),
 							HumanizeDuration(remaining, false),
-							percentage))
+							percentage)
 					}
 				}
 			},
-		} //sleepCmd
+		}
 		sleepCmd.Flags().BoolP("quiet", "q", false, "suppress progress updates")
 
-		// waitCmd pauses execution until a specified time
+		// wait command - pauses execution until a specified time
 		var waitCmd = &cobra.Command{
 			Use:   "wait --time HH:MM",
 			Short: "Pauses execution until the specified time (24-hour format)",
@@ -207,12 +215,63 @@ If the specified time is earlier than the current time, the command will wait un
 				return nil
 			},
 		}
+		waitCmd.Flags().StringP("time", "t", "", "Time to wait until in HH:MM format (24-hour)")
+		_ = waitCmd.MarkFlagRequired("time")
 
-		// repeatCmd repeats a message a specified number of times
+		// waitfor command - waits until a condition is met
+		var waitForCmd = &cobra.Command{
+			Use:   "waitfor --target TARGET",
+			Short: "Waits until a specified condition is met",
+			Long: `This command waits until a specific condition is met.
+In this example, it waits until a counter reaches or exceeds a target value.`,
+			Example: ` waitfor --target 10 --interval 2  # Waits until counter reaches 10, checking every 2 seconds`,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				target, err := cmd.Flags().GetInt("target")
+				if err != nil {
+					return err
+				}
+
+				interval, err := cmd.Flags().GetInt("interval")
+				if err != nil {
+					return err
+				}
+
+				counter := 0
+				cmd.Printf("Waiting until counter reaches %d...\n", target)
+
+				for {
+					if counter >= target {
+						cmd.Printf("Condition met! Counter has reached %d.\n", counter)
+						break
+					}
+
+					cmd.Printf("Counter at %d, waiting %d seconds before next check...\n", counter, interval)
+					time.Sleep(time.Duration(interval) * time.Second)
+					counter++
+				}
+
+				return nil
+			},
+		}
+		waitForCmd.Flags().IntP("target", "t", 10, "Target value to wait for")
+		waitForCmd.Flags().IntP("interval", "i", 1, "Interval in seconds between each check")
+		_ = waitForCmd.MarkFlagRequired("target")
+
+		rootCmd.AddCommand(sleepCmd)
+		rootCmd.AddCommand(waitCmd)
+		rootCmd.AddCommand(waitForCmd)
+	}
+}
+
+// AddControlFlowBasicCmds registers basic control flow commands: repeat, set, if
+// Note: These complement the advanced control flow commands in controlflowcmds.go
+func AddControlFlowBasicCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
+	return func(rootCmd *cobra.Command) {
+		// repeat command - repeats a command multiple times
 		var repeatCmd = &cobra.Command{
 			Use:   "repeat [--background] [--count {n}]  [--sleep {secs}] {cmd}",
 			Short: "Repeats a message a specified number of times with optional delay between each repetition",
-			Long: `Repeats the provided message a specified number of times. 
+			Long: `Repeats the provided message a specified number of times.
 You can control the repetition count and the delay between each repetition.
 
 To run indefinitely, set --count to -1.`,
@@ -220,7 +279,7 @@ To run indefinitely, set --count to -1.`,
 repeat --count 5 --sleep 2 "print This is a custom message;print another message"
 repeat --count -1 --sleep 1 "print Infinite loop example"
 repeat --background --count 5 --sleep 1 "print alex in background"
-repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello'       
+repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello'
 `,
 			Args: cobra.MinimumNArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
@@ -270,46 +329,11 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				return nil
 			},
 		}
+		repeatCmd.Flags().IntP("count", "c", 1, "Number of times to repeat the message (-1 for infinite)")
+		repeatCmd.Flags().IntP("sleep", "s", 0, "Seconds to wait between each repetition")
+		repeatCmd.Flags().BoolP("background", "b", false, "run in background")
 
-		// Note: The 'check' command has been removed due to uninitialized data dependency.
-		// If needed in the future, it should be implemented with proper data initialization.
-
-		// waitForCmd waits until a condition is met
-		var waitForCmd = &cobra.Command{
-			Use:   "waitfor --target TARGET",
-			Short: "Waits until a specified condition is met",
-			Long: `This command waits until a specific condition is met. 
-In this example, it waits until a counter reaches or exceeds a target value.`,
-			Example: ` waitfor --target 10 --interval 2  # Waits until counter reaches 10, checking every 2 seconds`,
-			RunE: func(cmd *cobra.Command, args []string) error {
-				target, err := cmd.Flags().GetInt("target")
-				if err != nil {
-					return err
-				}
-
-				interval, err := cmd.Flags().GetInt("interval")
-				if err != nil {
-					return err
-				}
-
-				counter := 0
-				cmd.Printf("Waiting until counter reaches %d...\n", target)
-
-				for {
-					if counter >= target {
-						cmd.Printf("Condition met! Counter has reached %d.\n", counter)
-						break
-					}
-
-					cmd.Printf("Counter at %d, waiting %d seconds before next check...\n", counter, interval)
-					time.Sleep(time.Duration(interval) * time.Second)
-					counter++
-				}
-
-				return nil
-			},
-		}
-		// defaultCmd sets a default value for a script param.
+		// set command - sets a default value for a script param
 		var defaultCmd = &cobra.Command{
 			Use:     "set [token [value] ]",
 			Short:   "set or view default values. If no token is provides, will list all defaults tokens out. If no value is provided, it will print the current default value.",
@@ -363,7 +387,9 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 				exec.Variables.Set(key, value)
 			},
 		}
+		defaultCmd.Flags().BoolP("overwrite", "o", false, "overwrite default value")
 
+		// if command - conditional execution
 		var IfCmdFunc = func(cmd *cobra.Command, args []string) {
 			// Evaluate the condition: compare args[0] with args[1]
 			iff := args[0] == args[1]
@@ -407,36 +433,17 @@ In this example, it waits until a counter reaches or exceeds a target value.`,
 			Args:  cobra.ExactArgs(2),
 			Run:   IfCmdFunc,
 		}
-
-		// Set up flags for each command
-		waitCmd.Flags().StringP("time", "t", "", "Time to wait until in HH:MM format (24-hour)")
-		_ = waitCmd.MarkFlagRequired("time")
-
-		repeatCmd.Flags().IntP("count", "c", 1, "Number of times to repeat the message (-1 for infinite)")
-		repeatCmd.Flags().IntP("sleep", "s", 0, "Seconds to wait between each repetition")
-		repeatCmd.Flags().BoolP("background", "b", false, "run in background")
-
-		waitForCmd.Flags().IntP("target", "t", 10, "Target value to wait for")
-		waitForCmd.Flags().IntP("interval", "i", 1, "Interval in seconds between each check")
-		_ = waitForCmd.MarkFlagRequired("target")
-
 		ifCmd.Flags().String("if_true", "print test is true", "command to run if true")
 		ifCmd.Flags().String("if_false", "print test is false", "command to run if false")
 		ifCmd.Flags().String("if_na", "print test is not available", "command to run if not available")
 
-		rootCmd.AddCommand(ifCmd)
-		defaultCmd.Flags().BoolP("overwrite", "o", false, "overwrite default value")
-		rootCmd.AddCommand(defaultCmd)
-		rootCmd.AddCommand(waitForCmd)
 		rootCmd.AddCommand(repeatCmd)
-		rootCmd.AddCommand(waitCmd)
-
-		rootCmd.AddCommand(httpCmd)
-		rootCmd.AddCommand(sleepCmd)
-
+		rootCmd.AddCommand(defaultCmd)
+		rootCmd.AddCommand(ifCmd)
 	}
 }
 
+// FetchURLContent fetches content from a URL and returns the body, status code, and error
 var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) {
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
 

@@ -49,8 +49,8 @@ type CommandExecutor struct {
 	// File handling (can be overridden for SSH chroot, etc.)
 	FileHandler FileHandler
 
-	// Embedded filesystem for scripts
-	Scripts embed.FS
+	// Embedded filesystem for scripts (nil if no embedded scripts)
+	Scripts *embed.FS
 
 	// Display settings
 	NoColor bool // Disable color output (respects NO_COLOR env var)
@@ -150,30 +150,11 @@ func NewCommandExecutor(appName string, customizer func(*CommandExecutor) error)
 	return exec, nil
 }
 
-// AddAll registers all built-in commands.
+// AddBuiltinCommands registers all built-in commands.
+// This provides backward compatibility and convenience.
+// For fine-grained control, use the individual command group functions instead.
 func (e *CommandExecutor) AddBuiltinCommands() {
-	e.AddCommands(AddAlias(e))
-	e.AddCommands(AddOSExec(e))
-	e.AddCommands(AddHistory(e)) // History works across all transports
-	e.AddCommands(AddMisc(e))
-	e.AddCommands(AddBaseCmds(e))
-	e.AddCommands(AddScriptingCmds(e))
-	e.AddCommands(AddJobCommands(e))
-	e.AddCommands(AddVariableCommands(e))
-	e.AddCommands(AddConfigCommands(e))
-	e.AddCommands(AddUtilityCommands(e))
-	e.AddCommands(AddLogCommands(e))
-	e.AddCommands(AddPromptCommands(e))
-	e.AddCommands(AddTemplateCommands(e))
-	e.AddCommands(AddDataManipulationCommands(e))
-	e.AddCommands(AddWatchCommand(e))
-	e.AddCommands(AddPipelineCommands(e))
-	e.AddCommands(AddControlFlowCommands(e))
-	e.AddCommands(AddNotifyCommands(e))
-	e.AddCommands(AddScheduleCommands(e))
-	e.AddCommands(AddFormatCommands(e))
-	e.AddCommands(AddClipboardCommands(e))
-	e.AddCommands(AddMCPCommands(e))
+	e.AddCommands(AddAllCmds(e))
 }
 
 // AddCommands registers a command customizer function.

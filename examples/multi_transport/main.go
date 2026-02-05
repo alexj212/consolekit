@@ -32,9 +32,9 @@ var (
 func main() {
 	// Create command executor (shared by all transports)
 	customizer := func(exec *consolekit.CommandExecutor) error {
-		exec.Scripts = Data
+		exec.Scripts = &Data
 		exec.AddBuiltinCommands()
-		exec.AddCommands(consolekit.AddRun(exec, Data))
+		exec.AddCommands(consolekit.AddRun(exec, &Data))
 
 		// Add custom version command
 		var verCmd = &cobra.Command{

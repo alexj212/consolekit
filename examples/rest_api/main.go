@@ -31,9 +31,9 @@ var (
 func main() {
 	// Create command executor
 	customizer := func(exec *consolekit.CommandExecutor) error {
-		exec.Scripts = Data
+		exec.Scripts = &Data
 		exec.AddBuiltinCommands()
-		exec.AddCommands(consolekit.AddRun(exec, Data))
+		exec.AddCommands(consolekit.AddRun(exec, &Data))
 
 		// Add version command
 		var verCmd = &cobra.Command{

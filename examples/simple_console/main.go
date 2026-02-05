@@ -31,9 +31,12 @@ var (
 func main() {
 	// Create command executor (core execution engine)
 	customizer := func(exec *consolekit.CommandExecutor) error {
-		exec.Scripts = Data
+		exec.Scripts = &Data
+
+		// Add all built-in commands (backward compatible convenience method)
+		// For more control, see examples/minimal_cli for selective command inclusion
 		exec.AddBuiltinCommands()
-		exec.AddCommands(consolekit.AddRun(exec, Data))
+		exec.AddCommands(consolekit.AddRun(exec, &Data))
 
 		// Add custom version command
 		var verCmdFunc = func(cmd *cobra.Command, args []string) {

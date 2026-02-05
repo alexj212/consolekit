@@ -1,0 +1,25 @@
+# Demo script for minimal CLI
+# This demonstrates the core features included in this minimal example
+
+print "=== Minimal CLI Demo ==="
+print ""
+
+# Variable management
+print "Setting variables..."
+let name="MinimalCLI"
+let count=5
+print "name = @name"
+print "count = @count"
+print ""
+
+# Control flow - repeat
+print "Repeating a command @count times:"
+repeat --count @count "print Hello from iteration"
+print ""
+
+# Control flow - if statement
+print "Testing conditionals:"
+if @count 5 --if_true="print Count is 5" --if_false="print Count is not 5"
+print ""
+
+print "=== Demo Complete ==="

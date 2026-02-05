@@ -15,7 +15,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AddRun(exec *CommandExecutor, scripts embed.FS) func(cmd *cobra.Command) {
+// AddRun registers the run command for script execution.
+// Pass nil for scripts if you only need external filesystem script support.
+// Pass &embed.FS if you have embedded scripts to support @filename syntax.
+func AddRun(exec *CommandExecutor, scripts *embed.FS) func(cmd *cobra.Command) {
 
 	return func(rootCmd *cobra.Command) {
 
@@ -28,6 +31,13 @@ func AddRun(exec *CommandExecutor, scripts embed.FS) func(cmd *cobra.Command) {
 
 			// Check if listing embedded files (@ prefix)
 			if strings.HasPrefix(dir, "@") {
+				// Check if embedded scripts are available
+				if scripts == nil {
+					cmd.Printf("Error: No embedded scripts available (scripts parameter was nil)\n")
+					cmd.Printf("Use filesystem paths instead of @ prefix\n")
+					return
+				}
+
 				// Remove @ prefix and get directory path (default to root)
 				embedPath := strings.TrimPrefix(dir, "@")
 				if embedPath == "" {
@@ -240,6 +250,13 @@ Full paths are displayed for all entries.`,
 			}
 
 			if args[0] == "@" {
+				// Check if embedded scripts are available
+				if scripts == nil {
+					cmd.Printf("Error: No embedded scripts available (scripts parameter was nil)\n")
+					cmd.Printf("Use filesystem paths instead of @ prefix\n")
+					return
+				}
+
 				f, err := scripts.ReadDir(".")
 				if err != nil {
 					cmd.Printf("Error reading scripts: %v\n", err)
@@ -290,7 +307,7 @@ Full paths are displayed for all entries.`,
 					if !quiet {
 						cmd.Printf("%s\n", fmt.Sprintf("  → %s", strings.TrimSpace(cmdLine)))
 					}
-					
+
 					res, err := exec.Execute(cmdLine, scriptDefs)
 					if res != "" {
 						cmd.Printf("%s\n", res)
@@ -303,7 +320,7 @@ Full paths are displayed for all entries.`,
 					}
 					execCount++
 				}
-				
+
 				if !quiet {
 					elapsed := time.Since(startTime)
 					timeSince := HumanizeDuration(elapsed, false)
@@ -332,7 +349,7 @@ Flags:
   --quiet    Suppress execution headers and command echoing, only show command output
 
 Arguments can be passed after the filename and referenced in the script as @arg0, @arg1, etc.`,
-			Args:  cobra.MinimumNArgs(1),
+			Args: cobra.MinimumNArgs(1),
 			PostRun: func(cmd *cobra.Command, args []string) {
 				ResetHelpFlagRecursively(cmd)
 				ResetAllFlags(cmd)
@@ -425,13 +442,19 @@ func ReadLines(rdr io.Reader) ([]string, error) {
 	return results, scanner.Err()
 }
 
-func LoadScript(scripts embed.FS, cmd *cobra.Command, filename string) ([]string, error) {
+// LoadScript loads a script from embedded files (@prefix) or filesystem.
+// Pass nil for scripts if you only need external filesystem script support.
+func LoadScript(scripts *embed.FS, cmd *cobra.Command, filename string) ([]string, error) {
 
 	if len(filename) == 0 {
 		return nil, fmt.Errorf("no filename provided")
 	}
 
 	if strings.HasPrefix(filename, "@") {
+		// Check if embedded scripts are available
+		if scripts == nil {
+			return nil, fmt.Errorf("embedded scripts not available (scripts parameter was nil), use filesystem path instead")
+		}
 
 		// Remove the @ prefix
 		// Read the file content

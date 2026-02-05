@@ -94,9 +94,9 @@ func main() {
 
 func createExecutor(cfg *Config) (*consolekit.CommandExecutor, error) {
 	customizer := func(exec *consolekit.CommandExecutor) error {
-		exec.Scripts = Scripts
+		exec.Scripts = &Scripts
 		exec.AddBuiltinCommands()
-		exec.AddCommands(consolekit.AddRun(exec, Scripts))
+		exec.AddCommands(consolekit.AddRun(exec, &Scripts))
 
 		// Configure logging
 		if cfg.LogCommands {
