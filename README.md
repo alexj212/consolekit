@@ -68,7 +68,7 @@ var scripts embed.FS
 func main() {
     // Create command executor with builtin commands
     executor, err := consolekit.NewCommandExecutor("myapp", func(exec *consolekit.CommandExecutor) error {
-        exec.Scripts = scripts
+        exec.Scripts = &scripts  // v0.8.0+: pointer required
         exec.AddBuiltinCommands()  // Adds all standard commands
         return nil
     })
@@ -122,6 +122,44 @@ func main() {
     }
 }
 ```
+
+### Modular Command Selection (v0.8.0+)
+
+Pick and choose which command groups to include:
+
+```go
+func main() {
+    executor, _ := consolekit.NewCommandExecutor("myapp", func(exec *consolekit.CommandExecutor) error {
+        // Option 1: Use convenience bundles
+        exec.AddCommands(consolekit.AddMinimalCmds(exec))      // Core + variables + scripting
+        exec.AddCommands(consolekit.AddStandardCmds(exec))     // Recommended defaults
+        exec.AddCommands(consolekit.AddAllCmds(exec))          // Everything
+
+        // Option 2: Pick specific groups
+        exec.AddCommands(consolekit.AddCoreCmds(exec))         // cls, exit, print, date
+        exec.AddCommands(consolekit.AddVariableCmds(exec))     // let, unset, vars
+        exec.AddCommands(consolekit.AddNetworkCmds(exec))      // http
+        exec.AddCommands(consolekit.AddDataManipulationCmds(exec)) // json, yaml, csv
+
+        // Scripts (note: pointer required in v0.8.0+)
+        exec.AddCommands(consolekit.AddRun(exec, &scripts))    // With embedded scripts
+        exec.AddCommands(consolekit.AddRun(exec, nil))         // External scripts only
+
+        return nil
+    })
+
+    repl := consolekit.NewREPLHandler(executor)
+    repl.Run()
+}
+```
+
+**Benefits:**
+- ✅ Smaller binaries (only compile what you need)
+- ✅ Faster startup (fewer commands to register)
+- ✅ Better security (exclude dangerous commands)
+- ✅ Clearer intent (explicit capabilities)
+
+See [COMMAND_GROUPS.md](COMMAND_GROUPS.md) for complete documentation.
 
 ## 💡 Usage Examples
 

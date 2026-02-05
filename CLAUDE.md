@@ -207,6 +207,8 @@ Commands are organized into modular files that provide registration functions:
 
 ### Script Execution System (run.go)
 
+**v0.8.0 Breaking Change:** `AddRun` now accepts `*embed.FS` (pointer) instead of `embed.FS` (by value).
+
 Scripts can be:
 - **Embedded**: Stored in `embed.FS`, referenced with `@filename`
 - **External**: Read from filesystem with full path
@@ -215,6 +217,17 @@ Scripts can be:
   - Each script execution gets its own argument namespace
 
 Multi-line commands supported with backslash continuation (`\`).
+
+**Registration:**
+```go
+// With embedded scripts
+//go:embed *.run
+var Scripts embed.FS
+exec.AddCommands(consolekit.AddRun(exec, &Scripts))  // Note: pointer
+
+// External scripts only (v0.8.0+)
+exec.AddCommands(consolekit.AddRun(exec, nil))
+```
 
 **Security Warning**: Scripts and the `cat` command can read any file accessible to the process. See SECURITY.md for deployment considerations.
 

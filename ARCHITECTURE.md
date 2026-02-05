@@ -119,7 +119,7 @@ The `CommandExecutor` is the core execution engine. It is completely transport-a
 ```go
 type CommandExecutor struct {
     AppName         string
-    Defaults        *safemap.SafeMap[string, string]
+    Variables       *safemap.SafeMap[string, string]  // v0.7.0+: was Defaults
     aliases         *safemap.SafeMap[string, string]
     VariableExpanders  []func(string) (string, bool)
     JobManager      *JobManager
@@ -128,7 +128,7 @@ type CommandExecutor struct {
     TemplateManager *TemplateManager
     NotificationManager   *NotificationManager
     FileHandler     FileHandler
-    Scripts         embed.FS
+    Scripts         *embed.FS  // v0.8.0+: pointer to allow nil
 }
 
 func (e *CommandExecutor) Execute(line string, scope *SafeMap) (string, error)

@@ -130,9 +130,20 @@ Configuration file management.
 #### `AddScriptingCmds(exec)`
 Script execution support.
 
-**Note:** This is a placeholder. Use `AddRun(exec, scripts embed.FS)` directly to enable script execution.
+**Note:** This is a placeholder. Use `AddRun(exec, scripts *embed.FS)` directly to enable script execution. Pass `&scripts` for embedded scripts or `nil` for external-only scripts.
 
 **Commands:** `run`
+
+**Examples:**
+```go
+// With embedded scripts
+//go:embed *.run
+var Scripts embed.FS
+exec.AddCommands(consolekit.AddRun(exec, &Scripts))
+
+// External scripts only
+exec.AddCommands(consolekit.AddRun(exec, nil))
+```
 
 **Use case:** Applications with embedded or external scripts
 
@@ -345,6 +356,8 @@ customizer := func(exec *consolekit.CommandExecutor) error {
 
 ## Backward Compatibility
 
+### v0.8.0: AddBuiltinCommands
+
 The old `AddBuiltinCommands()` method still works and is equivalent to `AddAllCmds()`:
 
 ```go
@@ -353,6 +366,25 @@ exec.AddBuiltinCommands()
 
 // New way (identical behavior)
 exec.AddCommands(consolekit.AddAllCmds(exec))
+```
+
+### v0.8.0: embed.FS Pointer Change
+
+`AddRun` now requires a pointer to `embed.FS`:
+
+```go
+// Before v0.8.0
+//go:embed *.run
+var Scripts embed.FS
+exec.AddCommands(consolekit.AddRun(exec, Scripts))  // ❌ No longer works
+
+// After v0.8.0
+//go:embed *.run
+var Scripts embed.FS
+exec.AddCommands(consolekit.AddRun(exec, &Scripts))  // ✅ Add &
+
+// New capability: No embedded scripts
+exec.AddCommands(consolekit.AddRun(exec, nil))      // ✅ Pass nil
 ```
 
 ## See Also

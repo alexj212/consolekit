@@ -1,9 +1,74 @@
-# ConsoleKit API Naming Refactor
+# ConsoleKit API Changes
 
-**Date:** 2026-01-31
-**Version:** 0.6.0 → 0.7.0 (Breaking Changes)
+This document tracks all breaking changes to the ConsoleKit API.
 
-This document details the comprehensive API naming refactor to improve clarity, consistency, and professionalism.
+---
+
+## v0.8.0 - Modular Commands & embed.FS Pointer (2026-02-05)
+
+**Status:** Current Release
+**Breaking Changes:** Yes
+
+### Modular Command System
+
+ConsoleKit now provides fine-grained control over which command groups to include. See [COMMAND_GROUPS.md](COMMAND_GROUPS.md) for details.
+
+**New Convenience Bundles:**
+- `AddAllCmds(exec)` - All commands
+- `AddStandardCmds(exec)` - Recommended defaults
+- `AddMinimalCmds(exec)` - Core + variables + scripting
+- `AddDeveloperCmds(exec)` - Standard + developer features
+- `AddAutomationCmds(exec)` - Automation-optimized
+
+**Individual Command Groups:**
+Applications can now selectively include specific command groups (see COMMAND_GROUPS.md).
+
+**Backward Compatibility:**
+`AddBuiltinCommands()` still works and is equivalent to `AddAllCmds()`.
+
+### embed.FS Pointer Change
+
+`AddRun` and `LoadScript` now accept `*embed.FS` (pointer) instead of `embed.FS` (by value), allowing `nil` to be passed when no embedded scripts are needed.
+
+**Migration:**
+
+Before (v0.7.0):
+```go
+//go:embed *.run
+var Scripts embed.FS
+
+exec.AddCommands(consolekit.AddRun(exec, Scripts))
+exec.Scripts = Scripts
+```
+
+After (v0.8.0):
+```go
+//go:embed *.run
+var Scripts embed.FS
+
+exec.AddCommands(consolekit.AddRun(exec, &Scripts))  // Add &
+exec.Scripts = &Scripts                               // Add &
+
+// Or for no embedded scripts:
+exec.AddCommands(consolekit.AddRun(exec, nil))        // Pass nil
+exec.Scripts = nil                                    // Set nil
+```
+
+**Affected Functions:**
+- `AddRun(exec *CommandExecutor, scripts *embed.FS)` - was `scripts embed.FS`
+- `LoadScript(scripts *embed.FS, cmd, filename)` - was `scripts embed.FS`
+- `CommandExecutor.Scripts` field - now `*embed.FS` instead of `embed.FS`
+
+**Rationale:** Allows applications to use external-only scripts without requiring an empty embed.FS. More explicit and flexible.
+
+---
+
+## v0.7.0 - API Naming Refactor (2026-01-31)
+
+**Status:** Previous Release
+**Breaking Changes:** Yes
+
+This comprehensive API naming refactor improved clarity, consistency, and professionalism.
 
 ## Summary
 
@@ -93,7 +158,7 @@ type CommandExecutor struct {
     HistoryManager      *HistoryManager
 
     FileHandler FileHandler
-    Scripts     embed.FS
+    Scripts     *embed.FS  // Pointer to allow nil (v0.8.0+)
     NoColor     bool
 }
 ```

@@ -1,25 +1,43 @@
 # ConsoleKit Examples
 
-This directory contains examples demonstrating different ConsoleKit transport handlers and use cases.
+This directory contains examples demonstrating different ConsoleKit features, transport handlers, and use cases.
 
 ## Examples Overview
 
-### 1. simple/ - Basic REPL Example
-The simplest example showing local REPL usage.
+### 1. simple_console/ - Basic REPL Example
+The simplest full-featured example showing local REPL usage with all commands.
 
 ```bash
-cd simple
+cd simple_console
 go build
-./simple
+./simple_console
 ```
 
 **Features:**
 - Local interactive REPL
+- All built-in commands
 - Command-line argument execution
 - Batch mode (stdin piping)
 - Custom commands
 
-### 2. ssh_server/ - SSH Server Example
+### 2. minimal_cli/ - Modular Command Selection (NEW in v0.8.0)
+Demonstrates the new modular command selection system.
+
+```bash
+cd minimal_cli
+go build
+./minimal_cli
+```
+
+**Features:**
+- **Selective command inclusion** - Only includes specific command groups
+- Minimal footprint - Core + Variables + Scripting + Control Flow only
+- Example of fine-grained command selection
+- Shows how to build custom CLI with specific capabilities
+
+**Use case:** Applications that need specific features without the full command set (e.g., script executor, automation tool, minimal REPL).
+
+### 3. ssh_server/ - SSH Server Example
 Demonstrates SSH server transport for remote access.
 
 ```bash
@@ -41,7 +59,7 @@ ssh admin@localhost -p 2222
 - PTY support for interactive commands
 - Session isolation
 
-### 3. multi_transport/ - All Transports Example
+### 4. multi_transport/ - All Transports Example
 Runs SSH, HTTP, and local REPL simultaneously.
 
 ```bash
@@ -74,14 +92,47 @@ go build -ldflags "\
 
 ## Common Features
 
-All examples include:
+Most examples include:
 - Version command (`version` or `v`)
-- All built-in ConsoleKit commands
+- Built-in ConsoleKit commands (varies by example)
 - Job management
 - Configuration system
 - Logging support
 - Template system
 - Variable system
+
+**Note:** `minimal_cli` demonstrates selective command inclusion and only includes a subset of commands.
+
+## New in v0.8.0
+
+### Modular Command System
+
+ConsoleKit v0.8.0 introduces fine-grained control over which command groups to include. See `minimal_cli/` for an example.
+
+**Convenience bundles:**
+- `AddAllCmds()` - Everything (like old `AddBuiltinCommands()`)
+- `AddStandardCmds()` - Recommended defaults
+- `AddMinimalCmds()` - Core + variables + scripting
+- `AddDeveloperCmds()` - Standard + developer tools
+- `AddAutomationCmds()` - Optimized for automation
+
+**Individual groups:** See [COMMAND_GROUPS.md](../COMMAND_GROUPS.md) for complete list.
+
+### embed.FS Pointer Change
+
+Script execution now requires pointers:
+
+```go
+// v0.8.0+
+//go:embed *.run
+var Scripts embed.FS
+exec.AddCommands(consolekit.AddRun(exec, &Scripts))  // Note: &Scripts
+
+// Or for external-only scripts:
+exec.AddCommands(consolekit.AddRun(exec, nil))
+```
+
+See [MIGRATION.md](../MIGRATION.md) for migration guide.
 
 ## Transport Comparison
 
