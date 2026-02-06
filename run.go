@@ -389,8 +389,8 @@ Arguments can be passed after the filename and referenced in the script as @arg0
 		rootCmd.AddCommand(runScriptCmd)
 		rootCmd.AddCommand(spawnScriptCmd)
 
-		runScriptCmd.Flags().Bool("spawn", false, "run script in background")
-		runScriptCmd.Flags().BoolP("quiet", "q", false, "suppress execution headers and command echoing")
+		runScriptCmd.Flags().Bool("spawn", false, "Run script in background")
+		runScriptCmd.Flags().BoolP("quiet", "q", false, "Suppress execution headers and command echoing")
 	}
 }
 

@@ -19,7 +19,7 @@ print ""
 
 # Control flow - if statement
 print "Testing conditionals:"
-if @count 5 --if_true="print Count is 5" --if_false="print Count is not 5"
+if @count 5 --if-true="print Count is 5" --if-false="print Count is not 5"
 print ""
 
 print "=== Demo Complete ==="

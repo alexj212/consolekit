@@ -105,9 +105,9 @@ func AddNetworkCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 			Run:   httpCmdFunc,
 			Args:  cobra.ExactArgs(1),
 		}
-		httpCmd.Flags().BoolP("show-headers", "", false, "show headers")
-		httpCmd.Flags().BoolP("show-status_code", "", false, "show status_code")
-		httpCmd.Flags().BoolP("show-details", "", false, "show details")
+		httpCmd.Flags().Bool("show-headers", false, "Show HTTP response headers")
+		httpCmd.Flags().Bool("show-status-code", false, "Show HTTP status code")
+		httpCmd.Flags().Bool("show-details", false, "Show detailed HTTP response information")
 
 		rootCmd.AddCommand(httpCmd)
 	}
@@ -181,7 +181,7 @@ func AddTimeCommands(exec *CommandExecutor) func(cmd *cobra.Command) {
 				}
 			},
 		}
-		sleepCmd.Flags().BoolP("quiet", "q", false, "suppress progress updates")
+		sleepCmd.Flags().BoolP("quiet", "q", false, "Suppress progress updates")
 
 		// wait command - pauses execution until a specified time
 		var waitCmd = &cobra.Command{
@@ -331,7 +331,7 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 		}
 		repeatCmd.Flags().IntP("count", "c", 1, "Number of times to repeat the message (-1 for infinite)")
 		repeatCmd.Flags().IntP("sleep", "s", 0, "Seconds to wait between each repetition")
-		repeatCmd.Flags().BoolP("background", "b", false, "run in background")
+		repeatCmd.Flags().BoolP("background", "b", false, "Run in background")
 
 		// set command - sets a default value for a script param
 		var defaultCmd = &cobra.Command{
@@ -387,15 +387,15 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				exec.Variables.Set(key, value)
 			},
 		}
-		defaultCmd.Flags().BoolP("overwrite", "o", false, "overwrite default value")
+		defaultCmd.Flags().BoolP("overwrite", "o", false, "Overwrite existing default value")
 
 		// if command - conditional execution
 		var IfCmdFunc = func(cmd *cobra.Command, args []string) {
 			// Evaluate the condition: compare args[0] with args[1]
 			iff := args[0] == args[1]
 
-			ifTrue := cmd.Flag("if_true").Value.String()
-			ifFalse := cmd.Flag("if_false").Value.String()
+			ifTrue := cmd.Flag("if-true").Value.String()
+			ifFalse := cmd.Flag("if-false").Value.String()
 
 			if iff && ifTrue != "" {
 				cmd.Printf("Condition true (%s == %s), running: `%s`\n", args[0], args[1], ifTrue)
@@ -428,14 +428,14 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 		}
 
 		var ifCmd = &cobra.Command{
-			Use:   "if {var} {val}  [--if_true={cmd}] [--if_false={cmd}] [--if_na={cmd}]",
+			Use:   "if {var} {val}  [--if-true={cmd}] [--if-false={cmd}] [--if-na={cmd}]",
 			Short: "if var equals val",
 			Args:  cobra.ExactArgs(2),
 			Run:   IfCmdFunc,
 		}
-		ifCmd.Flags().String("if_true", "print test is true", "command to run if true")
-		ifCmd.Flags().String("if_false", "print test is false", "command to run if false")
-		ifCmd.Flags().String("if_na", "print test is not available", "command to run if not available")
+		ifCmd.Flags().String("if-true", "print test is true", "Command to run if condition is true")
+		ifCmd.Flags().String("if-false", "print test is false", "Command to run if condition is false")
+		ifCmd.Flags().String("if-na", "print test is not available", "Command to run if variable is not available")
 
 		rootCmd.AddCommand(repeatCmd)
 		rootCmd.AddCommand(defaultCmd)
@@ -453,7 +453,7 @@ var FetchURLContent = func(cmd *cobra.Command, url string) (string, int, error) 
 
 	showHeader, _ := cmd.Flags().GetBool("show-headers")
 	showDetails, _ := cmd.Flags().GetBool("show-details")
-	showStatusCode, _ := cmd.Flags().GetBool("show-status_code")
+	showStatusCode, _ := cmd.Flags().GetBool("show-status-code")
 
 	// Make the HTTP GET request with timeout
 	client := &http.Client{

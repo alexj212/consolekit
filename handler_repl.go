@@ -167,6 +167,13 @@ func (h *REPLHandler) buildREPLRootCmd() func() *cobra.Command {
 	return func() *cobra.Command {
 		baseCmd := h.executor.RootCmd()
 
+		// Hide commands that shouldn't be available in REPL mode
+		for _, cmdName := range h.executor.replHiddenCommands {
+			if cmd, _, err := baseCmd.Find([]string{cmdName}); err == nil && cmd != nil {
+				cmd.Hidden = true
+			}
+		}
+
 		// Override root command RunE to handle pipes/redirects/@tokens
 		baseCmd.RunE = func(cmd *cobra.Command, args []string) error {
 			// Check if we have a line with pipes/redirects/@tokens

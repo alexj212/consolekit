@@ -186,7 +186,7 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 		// history search
 		var historySearchCmd = &cobra.Command{
-			Use:     "search {filter} [--show_dupes]",
+			Use:     "search {filter} [--show-dupes]",
 			Short:   "Search history",
 			Aliases: []string{"s"},
 			Args:    cobra.ExactArgs(1),
@@ -196,7 +196,7 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 					return
 				}
 
-				showDupes, _ := cmd.Flags().GetBool("show_dupes")
+				showDupes, _ := cmd.Flags().GetBool("show-dupes")
 				filter := strings.ToLower(args[0])
 
 				history := exec.HistoryManager.GetHistory()
@@ -231,11 +231,11 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				ResetAllFlags(cmd)
 			},
 		}
-		historySearchCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands")
+		historySearchCmd.Flags().BoolP("show-dupes", "d", false, "Show duplicate commands")
 
 		// history list
 		var historyLsCmd = &cobra.Command{
-			Use:     "list [--limit={n}] [--show_dupes]",
+			Use:     "list [--limit={n}] [--show-dupes]",
 			Short:   "Show history",
 			Args:    cobra.NoArgs,
 			Aliases: []string{"ls", "l"},
@@ -249,7 +249,7 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				lines := len(history)
 				cmd.Printf("History: %d entries\n\n", lines)
 
-				showDupes, _ := cmd.Flags().GetBool("show_dupes")
+				showDupes, _ := cmd.Flags().GetBool("show-dupes")
 				limit, _ := cmd.Flags().GetInt("limit")
 
 				cnt := 0
@@ -279,7 +279,7 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				ResetAllFlags(cmd)
 			},
 		}
-		historyLsCmd.Flags().BoolP("show_dupes", "d", false, "Show duplicate commands")
+		historyLsCmd.Flags().BoolP("show-dupes", "d", false, "Show duplicate commands")
 		historyLsCmd.Flags().IntP("limit", "n", 100, "Limit number of entries")
 
 		// history replay

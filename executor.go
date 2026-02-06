@@ -33,6 +33,7 @@ type CommandExecutor struct {
 
 	// Command registration
 	rootInit []func(*cobra.Command)
+	replHiddenCommands []string // Commands to hide in REPL mode
 
 	// Managers (dependency injection)
 	JobManager      *JobManager
@@ -160,6 +161,13 @@ func (e *CommandExecutor) AddBuiltinCommands() {
 // AddCommands registers a command customizer function.
 func (e *CommandExecutor) AddCommands(cmds func(*cobra.Command)) {
 	e.rootInit = append(e.rootInit, cmds)
+}
+
+// HideInREPL marks a command to be hidden when in REPL mode.
+// This is useful for commands like "service" that launch the REPL itself
+// and shouldn't be callable from within the REPL.
+func (e *CommandExecutor) HideInREPL(cmdName string) {
+	e.replHiddenCommands = append(e.replHiddenCommands, cmdName)
 }
 
 // ExecuteLine executes a command line and returns the output.

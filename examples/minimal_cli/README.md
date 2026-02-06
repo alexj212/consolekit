@@ -43,7 +43,7 @@ vars
 
 # Control flow
 repeat --count @count "print Hello"
-if @count 5 --if_true="print Count is 5"
+if @count 5 --if-true="print Count is 5"
 
 # Scripts
 run demo.run
