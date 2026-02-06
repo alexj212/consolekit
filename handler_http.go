@@ -39,10 +39,11 @@ type HTTPHandler struct {
 	httpPassword string
 
 	// UI customization
-	AppName         string // Application name (default: ConsoleKit)
-	PageTitle       string // HTML page title (default: ConsoleKit Web Service)
-	WelcomeBanner   string // Welcome banner for web terminal
-	MessageOfTheDay string // MOTD for web terminal
+	AppName         string   // Application name (default: ConsoleKit)
+	PageTitle       string   // HTML page title (default: ConsoleKit Web Service)
+	WelcomeBanner   string   // Welcome banner for web terminal
+	MessageOfTheDay string   // MOTD for web terminal
+	InitialHistory  []string // Pre-populate command history with these commands
 
 	// Session management
 	IdleTimeout    time.Duration // Disconnect after inactivity (0 = disabled)
@@ -343,6 +344,7 @@ func (h *HTTPHandler) configHandler(w http.ResponseWriter, r *http.Request) {
 		"pageTitle":      pageTitle,
 		"welcome":        welcome,
 		"motd":           h.MessageOfTheDay,
+		"initialHistory": h.InitialHistory, // Pre-populate command history
 		"uptimeSeconds":  int(uptime.Seconds()),
 		"uptimeString":   formatUptime(uptime),
 		"startTime":      h.startTime.Format(time.RFC3339),

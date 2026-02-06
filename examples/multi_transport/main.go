@@ -135,6 +135,22 @@ func startSSHServer(executor *consolekit.CommandExecutor) *consolekit.SSHHandler
 		},
 	})
 
+	// Customize UI
+	sshHandler.WelcomeBanner = "Welcome to Multi-Transport ConsoleKit Demo (SSH)!"
+	sshHandler.MessageOfTheDay = "Try using arrow keys to navigate through pre-populated command history.\nType 'help' for available commands or 'exit' to disconnect."
+
+	// Pre-populate command history with helpful examples (same as HTTP for consistency)
+	sshHandler.InitialHistory = []string{
+		"help",
+		"version",
+		"print \"Hello from ConsoleKit!\"",
+		"date",
+		"vars",
+		"history list",
+		"jobs",
+		"cls",
+	}
+
 	fmt.Printf("SSH server (localhost):\n")
 	fmt.Printf("  ssh admin@localhost -p 2222\n")
 	fmt.Printf("  Password: secret123\n\n")
@@ -151,6 +167,24 @@ func startHTTPServer(executor *consolekit.CommandExecutor) *consolekit.HTTPHandl
 		"admin",
 		"secret123",
 	)
+
+	// Customize UI
+	httpHandler.AppName = "Multi-Transport Demo"
+	httpHandler.PageTitle = "Multi-Transport ConsoleKit"
+	httpHandler.WelcomeBanner = "Welcome to Multi-Transport ConsoleKit Demo!"
+	httpHandler.MessageOfTheDay = "Try using arrow keys to navigate through pre-populated command history."
+
+	// Pre-populate command history with helpful examples
+	httpHandler.InitialHistory = []string{
+		"help",
+		"version",
+		"print \"Hello from ConsoleKit!\"",
+		"date",
+		"vars",
+		"history list",
+		"jobs",
+		"cls",
+	}
 
 	fmt.Printf("HTTP server (localhost):\n")
 	fmt.Printf("  http://localhost:8080/admin\n")

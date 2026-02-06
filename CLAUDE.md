@@ -656,6 +656,234 @@ Thread-safe generic map used for:
 
 **Documentation**: See [MCP_INTEGRATION.md](./MCP_INTEGRATION.md) for detailed integration guide.
 
+### HTTP/WebSocket Server (handler_http.go)
+
+**Transport Handler**: Web-based terminal access with xterm.js frontend
+
+- **HTTPHandler**: Serves web UI and handles WebSocket connections
+  - Session-based authentication (username/password)
+  - WebSocket REPL terminal with xterm.js
+  - Embedded web UI (can override with local `./web` directory)
+  - Command execution via JSON-RPC over WebSocket
+  - Arrow key history navigation (properly handles ANSI escape sequences)
+
+- **Configuration**:
+  ```go
+  httpHandler := consolekit.NewHTTPHandler(
+      executor,
+      ":8080",          // Listen address
+      "admin",          // Username
+      "secret123",      // Password
+  )
+
+  // Customize UI
+  httpHandler.AppName = "My Application"
+  httpHandler.PageTitle = "My App Web Console"
+  httpHandler.WelcomeBanner = "Welcome to My Application!"
+  httpHandler.MessageOfTheDay = "Type 'help' for available commands."
+
+  // Pre-populate command history (great for onboarding!)
+  httpHandler.InitialHistory = []string{
+      "help",
+      "version",
+      "print \"Hello World\"",
+      "vars",
+      "history list",
+  }
+
+  // Session management
+  httpHandler.IdleTimeout = 30 * time.Minute
+  httpHandler.MaxSessionTime = 8 * time.Hour
+  httpHandler.MaxConnections = 100
+
+  // Start server
+  go httpHandler.Start()
+  ```
+
+- **Features**:
+  - **InitialHistory**: Pre-populate command history with helpful examples
+    - Commands appear in history immediately on login
+    - Users can navigate with up/down arrows without typing
+    - Great for onboarding new users or providing quick-start examples
+    - Merged with user's local browser history (no duplicates)
+  - **Persistent History**: Commands stored in browser localStorage
+  - **Keyboard Shortcuts**: Full readline support (Ctrl+A/E/U/K/W/L/C/D)
+  - **Arrow Keys**: Proper ANSI escape sequence handling (no literal `[B` display)
+  - **Tab Completion**: Client-side command completion
+  - **Secure**: Session cookies, HTTPS support, configurable timeouts
+
+- **Endpoints**:
+  - `/` - Status page with uptime
+  - `/admin` - Web terminal login page
+  - `/config` - UI configuration (JSON)
+  - `/login` - Authentication (POST)
+  - `/logout` - Session termination (POST)
+  - `/repl` - WebSocket REPL endpoint
+
+- **Web UI Architecture** (web/admin/):
+  - `index.html` - Terminal UI with xterm.js
+  - `index.js` - WebSocket client and input handling
+  - xterm.js addons: FitAddon (responsive sizing), WebLinksAddon (clickable URLs)
+  - Escape sequence filtering prevents control characters from displaying
+
+- **Usage Example**:
+  ```bash
+  # Access web terminal
+  http://localhost:8080/admin
+
+  # Login with configured credentials
+  # Arrow keys navigate pre-populated history
+  # Type commands or use history
+  ```
+
+**Use Cases**:
+- Web-based administration interfaces
+- Remote server management without SSH
+- Embedded terminal in web applications
+- Multi-user command execution with session tracking
+- User onboarding with pre-populated example commands
+
+**Security Considerations**:
+- Use HTTPS in production (TLS termination proxy or custom listener)
+- Rotate session tokens regularly
+- Implement rate limiting on login endpoint
+- Set secure cookie flags in production
+- Consider IP whitelisting for admin access
+- Audit logging recommended for command execution
+
+**Implementation Notes**:
+- Commands executed via `executor.Execute()` with session scope
+- Session variables available as `@http:user`, `@http:session_id`
+- WebSocket messages use JSON format: `{type: "input|output|error", message: "..."}`
+- xterm.js `onKey` handler processes keyboard input (not `onData` for single chars)
+- Arrow keys work correctly by filtering escape sequences in `onData` handler
+
+### SSH Server (handler_ssh.go)
+
+**Transport Handler**: SSH server with PTY support and interactive shell
+
+- **SSHHandler**: Full-featured SSH server with multi-session support
+  - Public key and password authentication
+  - Interactive shell sessions with full readline support
+  - Single command execution (`ssh user@host command`)
+  - PTY support for terminal applications
+  - Per-session context and logging
+  - Arrow key history navigation (proper ANSI escape sequence parsing)
+
+- **Configuration**:
+  ```go
+  // Generate or load host key
+  hostKey, err := consolekit.GenerateHostKey()
+  // Or: hostKey, err := ssh.ParsePrivateKey(keyBytes)
+
+  sshHandler := consolekit.NewSSHHandler(executor, ":2222", hostKey)
+
+  // Configure authentication
+  sshHandler.SetAuthConfig(&consolekit.SSHAuthConfig{
+      PasswordAuth: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+          if conn.User() == "admin" && string(password) == "secret" {
+              return &ssh.Permissions{}, nil
+          }
+          return nil, fmt.Errorf("invalid credentials")
+      },
+      PublicKeyAuth: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+          // Validate public key against authorized_keys
+          return &ssh.Permissions{}, nil
+      },
+  })
+
+  // Customize UI
+  sshHandler.WelcomeBanner = "Welcome to My SSH Console!"
+  sshHandler.MessageOfTheDay = "Type 'help' for available commands."
+  sshHandler.Banner = "Pre-auth banner (RFC 4252)"
+  sshHandler.PromptFunc = consolekit.ColorPrompt  // or custom function
+
+  // Pre-populate command history (same feature as HTTP!)
+  sshHandler.InitialHistory = []string{
+      "help",
+      "version",
+      "print \"Hello World\"",
+      "vars",
+      "history list",
+  }
+
+  // Session management
+  sshHandler.IdleTimeout = 30 * time.Minute
+  sshHandler.MaxSessionTime = 8 * time.Hour
+  sshHandler.MaxConnections = 100
+  sshHandler.MaxPerUser = 5
+
+  // Start server
+  go sshHandler.Start()
+  ```
+
+- **Features**:
+  - **InitialHistory**: Pre-populate command history (same as HTTP handler)
+    - Commands available immediately on connection
+    - Users can navigate with arrow keys without typing
+    - Great for onboarding and quick-start examples
+    - Each session gets its own copy of the history
+  - **Arrow Key Support**: Full readline emulation
+    - Up/Down: Navigate history
+    - Left/Right: Move cursor
+    - Home/End: Jump to line start/end
+    - Delete/Backspace: Character editing
+  - **Keyboard Shortcuts**: Full control key support
+    - Ctrl+A/E: Move to start/end of line
+    - Ctrl+U/K: Delete to start/end
+    - Ctrl+W: Delete word
+    - Ctrl+L: Clear screen
+    - Ctrl+C: Cancel input
+    - Ctrl+D: Disconnect (on empty line)
+  - **Tab Completion**: Command and argument completion
+  - **Multi-line Commands**: Backslash continuation support
+  - **Command Suggestions**: Typo correction with Levenshtein distance
+  - **Colored Output**: ANSI color support (if terminal supports it)
+  - **Session Timeouts**: Idle and maximum session duration limits
+
+- **Prompt Functions** (built-in):
+  - `DefaultPrompt`: `"user@app > "`
+  - `DetailedPrompt`: `"[user@app:sessionID] > "`
+  - `MinimalPrompt`: `"> "`
+  - `ColorPrompt`: Green user, cyan app name
+
+- **Usage Examples**:
+  ```bash
+  # Interactive shell
+  ssh admin@localhost -p 2222
+
+  # Single command execution
+  ssh admin@localhost -p 2222 "version"
+
+  # With key authentication
+  ssh -i ~/.ssh/id_rsa admin@localhost -p 2222
+  ```
+
+**Use Cases**:
+- Remote server administration
+- Embedded SSH access in Go applications
+- Multi-user command execution with authentication
+- Secure remote access without exposing HTTP endpoints
+- User onboarding with pre-populated example commands
+
+**Security Considerations**:
+- Generate persistent host keys (don't use `GenerateHostKey()` in production)
+- Implement proper public key validation against authorized_keys
+- Use strong password policies or disable password auth
+- Set connection and per-user limits to prevent DoS
+- Enable audit logging for compliance
+- Consider fail2ban integration for brute-force protection
+- Validate session environment variables before use
+
+**Implementation Notes**:
+- Commands executed via `executor.ExecuteWithContext()` with session context
+- Session variables available as `@ssh:user`, `@ssh:remote_ip`, `@ssh:session_id`, `@ssh:VARNAME`
+- Escape sequences properly parsed with timeout handling (prevents partial reads)
+- PTY mode automatically converts `\n` to `\r\n` for raw terminal
+- History stored per-session (in-memory, not persisted across reconnections)
+- Character-by-character input processing with echo and cursor support
+- Levenshtein distance algorithm for command suggestions (max distance 3)
+
 ## Key Design Patterns
 
 ### Modular Command Registration

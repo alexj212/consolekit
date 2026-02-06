@@ -39,6 +39,7 @@ type SSHHandler struct {
 	WelcomeBanner   string        // Welcome banner (displayed after login)
 	MessageOfTheDay string        // MOTD (displayed after welcome)
 	Banner          string        // Pre-authentication banner (RFC 4252)
+	InitialHistory  []string      // Pre-populate command history with these commands
 
 	// Session management
 	IdleTimeout      time.Duration // Disconnect after inactivity (0 = disabled)
@@ -292,6 +293,15 @@ func (h *SSHHandler) handleConnection(nConn net.Conn, config *ssh.ServerConfig) 
 		sessionID := fmt.Sprintf("ssh-%d", time.Now().UnixNano())
 		ctx, cancel := context.WithCancel(context.Background())
 		now := time.Now()
+
+		// Initialize history with pre-populated commands if configured
+		initialHistory := make([]string, 0, 100)
+		if h.InitialHistory != nil && len(h.InitialHistory) > 0 {
+			// Copy initial history to session (each session gets its own copy)
+			initialHistory = make([]string, len(h.InitialHistory), 100)
+			copy(initialHistory, h.InitialHistory)
+		}
+
 		session := &SSHSession{
 			id:           sessionID,
 			user:         conn.User(),
@@ -301,7 +311,7 @@ func (h *SSHHandler) handleConnection(nConn net.Conn, config *ssh.ServerConfig) 
 			env:          make(map[string]string),
 			ctx:          ctx,
 			cancel:       cancel,
-			history:      make([]string, 0, 100),
+			history:      initialHistory,
 			historyPos:   -1,
 			historyTemp:  "",
 			startTime:    now,

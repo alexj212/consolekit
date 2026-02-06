@@ -33,7 +33,8 @@ let appConfig = {
     appName: "ConsoleKit",
     pageTitle: "ConsoleKit Web Service",
     welcome: "Welcome to ConsoleKit Web Terminal",
-    motd: ""
+    motd: "",
+    initialHistory: []  // Server-provided initial history commands
 };
 
 // Load configuration from server
@@ -165,17 +166,46 @@ function setInput(newInput) {
     cursorPos = input.length;
 }
 
-// Load history from localStorage
+// Load history from localStorage and merge with server-provided initial history
 function loadHistory() {
+    let localHistory = [];
+
     try {
         const saved = localStorage.getItem('consolekit_history');
         if (saved) {
-            return JSON.parse(saved);
+            localHistory = JSON.parse(saved);
         }
     } catch (e) {
         console.error("Failed to load history:", e);
     }
-    return [];
+
+    // Merge initial history from server (if provided) with local history
+    // Initial history comes first, then user's local history
+    if (appConfig.initialHistory && Array.isArray(appConfig.initialHistory)) {
+        // Create a Set to avoid duplicates
+        const seen = new Set();
+        const merged = [];
+
+        // Add initial history first
+        for (const cmd of appConfig.initialHistory) {
+            if (cmd && !seen.has(cmd)) {
+                seen.add(cmd);
+                merged.push(cmd);
+            }
+        }
+
+        // Add local history
+        for (const cmd of localHistory) {
+            if (cmd && !seen.has(cmd)) {
+                seen.add(cmd);
+                merged.push(cmd);
+            }
+        }
+
+        return merged;
+    }
+
+    return localHistory;
 }
 
 // Save history to localStorage
@@ -225,6 +255,8 @@ function startTerminal() {
         scrollback: 10000,
         tabStopWidth: 4,
         allowProposedApi: true,
+        convertEol: false,  // Don't auto-convert EOL - we handle \r\n explicitly
+        disableStdin: false, // Ensure stdin is enabled for keyboard input
     });
 
     const fitAddon = new FitAddon.FitAddon();
@@ -329,20 +361,38 @@ function startTerminal() {
         fitAddon.fit();
     });
 
-    // Handle paste events
+    // Handle paste events and multi-character input
+    // NOTE: onData fires for ALL terminal input (keyboard + paste).
+    // Single-key input is handled by onKey, so we only process multi-char input here (paste).
+    // This prevents double-processing of keyboard input and control sequences.
     term.onData((data) => {
-        // If data contains multiple characters, it's likely a paste
-        if (data.length > 1) {
-            // Insert pasted text at cursor position
-            for (let i = 0; i < data.length; i++) {
-                const char = data[i];
-                // Only insert printable characters (ignore control characters)
-                if (char >= " " && char <= "~") {
-                    insertChar(char);
-                }
-            }
-            redrawLine(term);
+        // Ignore single-character input - it's handled by onKey
+        if (data.length === 1) {
+            return;
         }
+
+        // Check if this is an escape sequence (arrow keys, function keys, etc.)
+        // ANSI escape sequences start with ESC (0x1B) followed by other characters
+        // Examples: ESC[A (up arrow), ESC[B (down arrow), ESC[C (right), ESC[D (left)
+        if (data.charCodeAt(0) === 0x1B) {
+            // Ignore escape sequences - they should be handled by onKey handler
+            // If we don't filter these out, arrow keys will show as literal [A, [B, etc.
+            return;
+        }
+
+        // Multi-character input (paste) - insert at cursor position
+        for (let i = 0; i < data.length; i++) {
+            const char = data[i];
+            const code = char.charCodeAt(0);
+
+            // Only insert printable ASCII characters
+            // Range: 0x20 (space) to 0x7E (~)
+            // This filters out control characters (0x00-0x1F) and DEL (0x7F)
+            if (code >= 0x20 && code <= 0x7E) {
+                insertChar(char);
+            }
+        }
+        redrawLine(term);
     });
 
     term.onKey(({ key, domEvent }) => {
