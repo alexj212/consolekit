@@ -380,6 +380,15 @@ function startTerminal() {
             return;
         }
 
+        // Filter out partial escape sequences that arrive fragmented
+        // Escape sequences can arrive as: "\x1b" (ignored above), then "[A" or "[B" etc.
+        // Pattern: starts with '[' followed by control characters (A-Z, 0-9, ~)
+        // This catches fragmented arrow keys: [A, [B, [C, [D, [H, [F, etc.
+        if (data.length <= 3 && data[0] === '[' && /^[\[\dA-Z~;]+$/.test(data)) {
+            // This looks like a partial escape sequence - ignore it
+            return;
+        }
+
         // Multi-character input (paste) - insert at cursor position
         for (let i = 0; i < data.length; i++) {
             const char = data[i];
