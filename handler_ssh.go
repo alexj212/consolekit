@@ -905,10 +905,32 @@ func (h *SSHHandler) handleShell(session *SSHSession) {
 			}
 
 		case 27: // ESC - start of escape sequence
-			// Read next character to determine sequence type
+			// Read next two bytes to determine sequence type
+			// Use a channel with timeout to handle SSH buffering issues
 			escBuf := make([]byte, 2)
-			n, err := io.ReadFull(session.channel, escBuf)
-			if err != nil || n != 2 {
+
+			// Read with a timeout to handle cases where bytes don't arrive atomically
+			type readResult struct {
+				n   int
+				err error
+			}
+			readCh := make(chan readResult, 1)
+
+			go func() {
+				n, err := io.ReadFull(session.channel, escBuf)
+				readCh <- readResult{n, err}
+			}()
+
+			// Wait for read with timeout
+			select {
+			case result := <-readCh:
+				if result.err != nil || result.n != 2 {
+					// Incomplete escape sequence - consume and ignore
+					continue
+				}
+			case <-time.After(50 * time.Millisecond):
+				// Timeout waiting for escape sequence completion
+				// This is likely a standalone ESC key press
 				continue
 			}
 
