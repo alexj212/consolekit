@@ -62,6 +62,9 @@ type HTTPHandler struct {
 
 	// Optional custom listener
 	customListener net.Listener
+
+	// Custom route registration callback
+	customRoutesFn func(*mux.Router)
 }
 
 // WebSession represents an authenticated web session.
@@ -107,6 +110,13 @@ func (h *HTTPHandler) SetTransportConfig(config *TransportConfig) {
 // SetCustomListener sets a custom network listener.
 func (h *HTTPHandler) SetCustomListener(listener net.Listener) {
 	h.customListener = listener
+}
+
+// RegisterCustomRoutes registers a callback to add custom routes to the router.
+// The callback is invoked during setupRoutes(), allowing routes to be added
+// before the catch-all PathPrefix handler.
+func (h *HTTPHandler) RegisterCustomRoutes(fn func(*mux.Router)) {
+	h.customRoutesFn = fn
 }
 
 // Start begins serving HTTP/WebSocket connections (blocking).
@@ -205,7 +215,12 @@ func (h *HTTPHandler) setupRoutes() {
 	h.router.HandleFunc("/config", h.configHandler).Methods("GET")  // UI configuration
 	h.router.HandleFunc("/repl", h.replHandler).Methods("GET")      // WebSocket REPL
 
-	// Serve web UI (embedded or local directory)
+	// Register custom routes (if provided) before catch-all handler
+	if h.customRoutesFn != nil {
+		h.customRoutesFn(h.router)
+	}
+
+	// Serve web UI (embedded or local directory) - must be last (catch-all)
 	h.router.PathPrefix("/").Handler(h.fsHandler())
 }
 
