@@ -12,20 +12,22 @@ require (
 	github.com/reeflective/console v0.1.25
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	golang.org/x/crypto v0.47.0
-	golang.org/x/exp v0.0.0-20260112195511-716be5621a96
-	golang.org/x/term v0.39.0
+	golang.org/x/crypto v0.49.0
+	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
+	golang.org/x/term v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/carapace-sh/carapace v1.11.1 // indirect
+	github.com/carapace-sh/carapace v1.11.2 // indirect
 	github.com/carapace-sh/carapace-shlex v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/reeflective/readline v1.1.4 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	mvdan.cc/sh/v3 v3.12.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	mvdan.cc/sh/v3 v3.13.0 // indirect
 )
+
+replace github.com/reeflective/readline => github.com/liamg/readline v0.0.0-20260311204209-f79650add96d
