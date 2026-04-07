@@ -3,6 +3,7 @@ package consolekit
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -14,6 +15,12 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
+
+// errPipelineHandled is a sentinel error returned by the pre-command hook
+// when it has already executed a command containing pipes or redirects
+// through the CommandExecutor. This prevents reeflective from also
+// passing the command to cobra.
+var errPipelineHandled = errors.New("pipeline handled")
 
 // REPLHandler implements TransportHandler for local interactive REPL.
 // It wraps a CommandExecutor and adds REPL-specific functionality like:
@@ -104,8 +111,16 @@ func NewREPLHandler(executor *CommandExecutor) *REPLHandler {
 	// Set the prompt using the stored prompt function
 	handler.display.SetPrompt(handler.promptFunc)
 
-	// Add a pre-command hook for alias expansion
-	// Store line in pendingOutput for root command to check for pipes/redirects/@tokens
+	// Suppress the sentinel error used when pipes/redirects are handled by the hook
+	if ra, ok := handler.display.(*ReflectiveAdapter); ok {
+		ra.SuppressError(errPipelineHandled)
+	}
+
+	// Add a pre-command hook for alias expansion and pipe/redirect handling.
+	// When the input contains pipes (|) or redirects (>), the command must be
+	// executed through CommandExecutor.Execute() which handles ParseCommands.
+	// Without this, reeflective passes args directly to cobra, which routes to
+	// subcommands without processing pipes/redirects.
 	handler.display.AddPreCommandHook(func(args []string) ([]string, error) {
 		// Skip empty input
 		if len(args) == 0 {
@@ -119,9 +134,6 @@ func NewREPLHandler(executor *CommandExecutor) *REPLHandler {
 		if strings.HasPrefix(line, "#") {
 			return nil, nil
 		}
-
-		// Store line for root command to check
-		handler.pendingOutput = line
 
 		// Check for alias expansion
 		originalLine := line
@@ -151,9 +163,31 @@ func NewREPLHandler(executor *CommandExecutor) *REPLHandler {
 
 		// If alias changed, update stored line and re-split
 		if line != originalLine {
-			handler.pendingOutput = line
-			return strings.Fields(line), nil
+			args = strings.Fields(line)
 		}
+
+		// Check if line contains pipes or redirects.
+		// These must go through executor.Execute() for proper handling,
+		// since cobra subcommand routing bypasses pipe/redirect processing.
+		if strings.Contains(line, "|") || strings.Contains(line, ">") {
+			output, err := executor.Execute(line, nil)
+			if output != "" {
+				fmt.Print(output)
+				if !strings.HasSuffix(output, "\n") {
+					fmt.Println()
+				}
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
+			// Flush stdout to ensure output is visible before next prompt
+			os.Stdout.Sync()
+			handler.pendingOutput = ""
+			return nil, errPipelineHandled
+		}
+
+		// Store line for root command to check for @token expansion
+		handler.pendingOutput = line
 
 		return args, nil
 	})
@@ -429,7 +463,12 @@ func (h *REPLHandler) SetDisplayAdapter(adapter DisplayAdapter) {
 		h.display.SetPrompt(h.promptFunc)
 	}
 
-	// Re-add pre-command hook for alias expansion
+	// Suppress the sentinel error used when pipes/redirects are handled by the hook
+	if ra, ok := adapter.(*ReflectiveAdapter); ok {
+		ra.SuppressError(errPipelineHandled)
+	}
+
+	// Re-add pre-command hook for alias expansion and pipe/redirect handling
 	h.display.AddPreCommandHook(func(args []string) ([]string, error) {
 		// Skip empty input
 		if len(args) == 0 {
@@ -443,9 +482,6 @@ func (h *REPLHandler) SetDisplayAdapter(adapter DisplayAdapter) {
 		if strings.HasPrefix(line, "#") {
 			return nil, nil
 		}
-
-		// Store line for root command to check
-		h.pendingOutput = line
 
 		// Check for alias expansion
 		originalLine := line
@@ -475,9 +511,28 @@ func (h *REPLHandler) SetDisplayAdapter(adapter DisplayAdapter) {
 
 		// If alias changed, update stored line and re-split
 		if line != originalLine {
-			h.pendingOutput = line
-			return strings.Fields(line), nil
+			args = strings.Fields(line)
 		}
+
+		// Check if line contains pipes or redirects
+		if strings.Contains(line, "|") || strings.Contains(line, ">") {
+			output, err := h.executor.Execute(line, nil)
+			if output != "" {
+				fmt.Print(output)
+				if !strings.HasSuffix(output, "\n") {
+					fmt.Println()
+				}
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
+			os.Stdout.Sync()
+			h.pendingOutput = ""
+			return nil, errPipelineHandled
+		}
+
+		// Store line for root command to check for @token expansion
+		h.pendingOutput = line
 
 		return args, nil
 	})

@@ -1,6 +1,8 @@
 package consolekit
 
 import (
+	"errors"
+
 	"github.com/reeflective/console"
 	"github.com/spf13/cobra"
 )
@@ -53,6 +55,19 @@ func (r *ReflectiveAdapter) SetPrompt(fn func() string) {
 // AddPreCommandHook registers a hook that runs before command execution.
 func (r *ReflectiveAdapter) AddPreCommandHook(hook func([]string) ([]string, error)) {
 	r.app.PreCmdRunLineHooks = append(r.app.PreCmdRunLineHooks, hook)
+}
+
+// SuppressError configures the error handler to silently ignore errors
+// that wrap the given sentinel error. Other errors are handled normally.
+func (r *ReflectiveAdapter) SuppressError(sentinel error) {
+	menu := r.app.ActiveMenu()
+	prev := menu.ErrorHandler
+	menu.ErrorHandler = func(err error) error {
+		if errors.Is(err, sentinel) {
+			return nil
+		}
+		return prev(err)
+	}
 }
 
 // SetCommands registers the Cobra root command for the REPL.
