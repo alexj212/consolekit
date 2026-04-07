@@ -67,6 +67,9 @@ func main() {
 	// Start HTTP/WebSocket server
 	httpHandler := startHTTPServer(executor)
 
+	// Start Socket server
+	socketHandler := startSocketServer(executor)
+
 	// Start local REPL (optional - comment out if not needed)
 	replHandler := consolekit.NewREPLHandler(executor)
 	replHandler.SetPrompt(func() string {
@@ -88,6 +91,13 @@ func main() {
 		}
 	}()
 
+	go func() {
+		fmt.Println("Starting Socket server...")
+		if err := socketHandler.Start(); err != nil {
+			log.Printf("Socket server error: %v", err)
+		}
+	}()
+
 	fmt.Println("\nAll transports running. Press Ctrl+C to exit.")
 
 	// Handle shutdown gracefully
@@ -100,6 +110,7 @@ func main() {
 		fmt.Println("\nShutting down...")
 		sshHandler.Stop()
 		httpHandler.Stop()
+		socketHandler.Stop()
 		os.Exit(0)
 	default:
 		// Run REPL in main goroutine
@@ -192,6 +203,17 @@ func startHTTPServer(executor *consolekit.CommandExecutor) *consolekit.HTTPHandl
 	fmt.Printf("  Password: secret123\n\n")
 
 	return httpHandler
+}
+
+// startSocketServer creates and configures socket server
+func startSocketServer(executor *consolekit.CommandExecutor) *consolekit.SocketHandler {
+	sockPath := consolekit.DefaultSocketPath("multi-transport")
+	handler := consolekit.NewSocketHandler(executor, "unix", sockPath)
+
+	fmt.Printf("Socket server:\n")
+	fmt.Printf("  echo '{\"command\":\"help\"}' | nc -U %s\n\n", sockPath)
+
+	return handler
 }
 
 // generateHostKey generates an RSA host key for SSH

@@ -48,6 +48,7 @@ func AddAllCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		AddTimeCmds(exec)(rootCmd)
 		AddNotificationCmds(exec)(rootCmd)
 		AddMCPCmds(exec)(rootCmd)
+		AddSocketCmds(exec)(rootCmd)
 
 		// Utilities
 		AddUtilityCmds(exec)(rootCmd)
@@ -116,6 +117,7 @@ func AddDeveloperCmds(exec *CommandExecutor) func(cmd *cobra.Command) {
 		AddInteractiveCmds(exec)(rootCmd)
 		AddLoggingCmds(exec)(rootCmd)
 		AddClipboardCmds(exec)(rootCmd)
+		AddSocketCmds(exec)(rootCmd)
 	}
 }
 
