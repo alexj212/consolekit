@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,14 @@ func (hm *HistoryManager) SetHistoryFile(path string) {
 	hm.historyFile = path
 }
 
+// historyEntry represents a JSON history entry written by reeflective/console.
+type historyEntry struct {
+	DateTime string `json:"datetime"`
+	Block    string `json:"block"`
+}
+
 // GetHistory reads history from file and returns as slice.
+// Handles both plain text lines and reeflective JSON format ({"datetime":"...","block":"..."}).
 func (hm *HistoryManager) GetHistory() []string {
 	var history []string
 
@@ -59,9 +67,21 @@ func (hm *HistoryManager) GetHistory() []string {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line != "" {
-			history = append(history, line)
+		if line == "" {
+			continue
 		}
+
+		// Try to parse as JSON history entry
+		if strings.HasPrefix(line, "{") {
+			var entry historyEntry
+			if err := json.Unmarshal([]byte(line), &entry); err == nil && entry.Block != "" {
+				history = append(history, entry.Block)
+				continue
+			}
+		}
+
+		// Plain text line
+		history = append(history, line)
 	}
 
 	return history
@@ -90,6 +110,57 @@ func (hm *HistoryManager) AppendHistory(command string) error {
 	}
 
 	return nil
+}
+
+// GetRawLines reads the raw lines from the history file without parsing.
+func (hm *HistoryManager) GetRawLines() []string {
+	var lines []string
+
+	if hm.historyFile == "" {
+		return lines
+	}
+
+	file, err := os.Open(hm.historyFile)
+	if err != nil {
+		return lines
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return lines
+}
+
+// parseRawLine extracts the command from a raw history line (JSON or plain text).
+func parseRawLine(line string) string {
+	if strings.HasPrefix(line, "{") {
+		var entry historyEntry
+		if err := json.Unmarshal([]byte(line), &entry); err == nil && entry.Block != "" {
+			return entry.Block
+		}
+	}
+	return line
+}
+
+// WriteRawLines writes raw lines back to the history file.
+func (hm *HistoryManager) WriteRawLines(lines []string) error {
+	if hm.historyFile == "" {
+		return fmt.Errorf("history file not configured")
+	}
+
+	var buf strings.Builder
+	for _, line := range lines {
+		buf.WriteString(line)
+		buf.WriteByte('\n')
+	}
+
+	return os.WriteFile(hm.historyFile, []byte(buf.String()), 0644)
 }
 
 // ClearHistory removes all history.
@@ -235,9 +306,9 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 
 		// history list
 		var historyLsCmd = &cobra.Command{
-			Use:     "list [--limit={n}] [--show-dupes]",
-			Short:   "Show history",
-			Args:    cobra.NoArgs,
+			Use:     "list [prefix] [--limit={n}] [--show-dupes]",
+			Short:   "Show history, optionally filtered by prefix",
+			Args:    cobra.MaximumNArgs(1),
 			Aliases: []string{"ls", "l"},
 			Run: func(cmd *cobra.Command, args []string) {
 				if exec.HistoryManager == nil {
@@ -252,26 +323,64 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				showDupes, _ := cmd.Flags().GetBool("show-dupes")
 				limit, _ := cmd.Flags().GetInt("limit")
 
-				cnt := 0
-				seen := make(map[string]bool)
-
-				start := lines - limit
-				if start < 0 {
-					start = 0
+				var prefix string
+				if len(args) > 0 {
+					prefix = strings.ToLower(args[0])
 				}
 
-				for i := start; i < lines; i++ {
-					line := history[i]
-					if !showDupes {
-						if seen[line] {
+				// When prefix is set, collect unique sorted matches
+				if prefix != "" {
+					seen := make(map[string]bool)
+					var matches []string
+
+					for i := 0; i < lines; i++ {
+						line := history[i]
+						if !strings.HasPrefix(strings.ToLower(line), prefix) {
+							continue
+						}
+						if !showDupes && seen[line] {
 							continue
 						}
 						seen[line] = true
+						matches = append(matches, line)
 					}
-					cmd.Printf("%d: %s\n", i, line)
-					cnt++
-					if cnt >= limit {
-						break
+
+					sort.Strings(matches)
+
+					cnt := 0
+					for _, line := range matches {
+						cmd.Printf("%s\n", line)
+						cnt++
+						if cnt >= limit {
+							break
+						}
+					}
+
+					if cnt == 0 {
+						cmd.Println("No matches found")
+					}
+				} else {
+					cnt := 0
+					seen := make(map[string]bool)
+
+					start := lines - limit
+					if start < 0 {
+						start = 0
+					}
+
+					for i := start; i < lines; i++ {
+						line := history[i]
+						if !showDupes {
+							if seen[line] {
+								continue
+							}
+							seen[line] = true
+						}
+						cmd.Printf("%d: %s\n", i, line)
+						cnt++
+						if cnt >= limit {
+							break
+						}
 					}
 				}
 			},
@@ -377,6 +486,259 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				for i := 0; i < limit; i++ {
 					cmd.Printf("  %d. %s (%d times)\n", i+1, counts[i].cmd, counts[i].count)
 				}
+			},
+		}
+
+		// history last
+		var lastCmd = &cobra.Command{
+			Use:   "last [n]",
+			Short: "Show or replay the last N commands",
+			Args:  cobra.MaximumNArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				history := exec.HistoryManager.GetHistory()
+				if len(history) == 0 {
+					cmd.Println("No history")
+					return
+				}
+
+				n := 1
+				if len(args) > 0 {
+					var err error
+					n, err = strconv.Atoi(args[0])
+					if err != nil || n < 1 {
+						cmd.PrintErrln("Invalid count")
+						return
+					}
+				}
+
+				rerun, _ := cmd.Flags().GetBool("exec")
+
+				start := len(history) - n
+				if start < 0 {
+					start = 0
+				}
+
+				for i := start; i < len(history); i++ {
+					command := history[i]
+					if rerun {
+						cmd.Printf("Replaying: %s\n", command)
+						output, err := exec.Execute(command, nil)
+						if output != "" {
+							cmd.Print(output)
+							if !strings.HasSuffix(output, "\n") {
+								cmd.Println()
+							}
+						}
+						if err != nil {
+							cmd.PrintErrln(fmt.Sprintf("Error: %v", err))
+						}
+					} else {
+						cmd.Printf("%d: %s\n", i, command)
+					}
+				}
+			},
+			PostRun: func(cmd *cobra.Command, args []string) {
+				ResetAllFlags(cmd)
+			},
+		}
+		lastCmd.Flags().BoolP("exec", "x", false, "Re-execute the last command(s)")
+
+		// history delete
+		var deleteCmd = &cobra.Command{
+			Use:     "delete [index...]",
+			Short:   "Delete history entries by index",
+			Aliases: []string{"del", "rm"},
+			Args:    cobra.MinimumNArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				rawLines := exec.HistoryManager.GetRawLines()
+				if len(rawLines) == 0 {
+					cmd.Println("No history")
+					return
+				}
+
+				// Parse indices to delete
+				toDelete := make(map[int]bool)
+				for _, arg := range args {
+					idx, err := strconv.Atoi(arg)
+					if err != nil {
+						cmd.PrintErrln(fmt.Sprintf("Invalid index: %s", arg))
+						return
+					}
+					if idx < 0 || idx >= len(rawLines) {
+						cmd.PrintErrln(fmt.Sprintf("Index out of range: %d (0-%d)", idx, len(rawLines)-1))
+						return
+					}
+					toDelete[idx] = true
+				}
+
+				var remaining []string
+				for i, line := range rawLines {
+					if !toDelete[i] {
+						remaining = append(remaining, line)
+					}
+				}
+
+				if err := exec.HistoryManager.WriteRawLines(remaining); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to write history: %v", err))
+					return
+				}
+
+				cmd.Printf("Deleted %d entries (%d remaining)\n", len(toDelete), len(remaining))
+			},
+		}
+
+		// history dedupe
+		var dedupeCmd = &cobra.Command{
+			Use:   "dedupe",
+			Short: "Remove duplicate entries from history",
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				rawLines := exec.HistoryManager.GetRawLines()
+				if len(rawLines) == 0 {
+					cmd.Println("No history")
+					return
+				}
+
+				consecutive, _ := cmd.Flags().GetBool("consecutive")
+
+				var deduped []string
+				if consecutive {
+					// Remove only consecutive duplicates
+					var prev string
+					for _, line := range rawLines {
+						command := parseRawLine(line)
+						if command != prev {
+							deduped = append(deduped, line)
+						}
+						prev = command
+					}
+				} else {
+					// Remove all duplicates, keeping last occurrence
+					seen := make(map[string]int) // command -> last index
+					for i, line := range rawLines {
+						command := parseRawLine(line)
+						seen[command] = i
+					}
+					for i, line := range rawLines {
+						command := parseRawLine(line)
+						if seen[command] == i {
+							deduped = append(deduped, line)
+						}
+					}
+				}
+
+				removed := len(rawLines) - len(deduped)
+				if removed == 0 {
+					cmd.Println("No duplicates found")
+					return
+				}
+
+				if err := exec.HistoryManager.WriteRawLines(deduped); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to write history: %v", err))
+					return
+				}
+
+				cmd.Printf("Removed %d duplicates (%d entries remaining)\n", removed, len(deduped))
+			},
+			PostRun: func(cmd *cobra.Command, args []string) {
+				ResetAllFlags(cmd)
+			},
+		}
+		dedupeCmd.Flags().BoolP("consecutive", "c", false, "Only remove consecutive duplicates")
+
+		// history export
+		var exportCmd = &cobra.Command{
+			Use:   "export [file]",
+			Short: "Export history to a plain text file",
+			Args:  cobra.MaximumNArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				history := exec.HistoryManager.GetHistory()
+				if len(history) == 0 {
+					cmd.Println("No history to export")
+					return
+				}
+
+				var out *os.File
+				if len(args) > 0 {
+					var err error
+					out, err = os.Create(args[0])
+					if err != nil {
+						cmd.PrintErrln(fmt.Sprintf("Failed to create file: %v", err))
+						return
+					}
+					defer out.Close()
+				} else {
+					// Print to stdout
+					for _, line := range history {
+						cmd.Println(line)
+					}
+					return
+				}
+
+				for _, line := range history {
+					fmt.Fprintln(out, line)
+				}
+
+				cmd.Printf("Exported %d entries to %s\n", len(history), args[0])
+			},
+		}
+
+		// history trim
+		var trimCmd = &cobra.Command{
+			Use:   "trim [n]",
+			Short: "Keep only the last N entries",
+			Args:  cobra.ExactArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if exec.HistoryManager == nil {
+					cmd.PrintErrln("History not available")
+					return
+				}
+
+				n, err := strconv.Atoi(args[0])
+				if err != nil || n < 0 {
+					cmd.PrintErrln("Invalid count")
+					return
+				}
+
+				rawLines := exec.HistoryManager.GetRawLines()
+				total := len(rawLines)
+
+				if total == 0 {
+					cmd.Println("No history")
+					return
+				}
+
+				if n >= total {
+					cmd.Printf("History has only %d entries, nothing to trim\n", total)
+					return
+				}
+
+				trimmed := rawLines[total-n:]
+				if err := exec.HistoryManager.WriteRawLines(trimmed); err != nil {
+					cmd.PrintErrln(fmt.Sprintf("Failed to write history: %v", err))
+					return
+				}
+
+				cmd.Printf("Trimmed %d entries, kept last %d\n", total-n, n)
 			},
 		}
 
@@ -541,6 +903,11 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 		historyCmd.AddCommand(bookmarkCmd)
 		historyCmd.AddCommand(replayCmd)
 		historyCmd.AddCommand(statsCmd)
+		historyCmd.AddCommand(lastCmd)
+		historyCmd.AddCommand(deleteCmd)
+		historyCmd.AddCommand(dedupeCmd)
+		historyCmd.AddCommand(exportCmd)
+		historyCmd.AddCommand(trimCmd)
 
 		rootCmd.AddCommand(historyCmd)
 	}
