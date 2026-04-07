@@ -23,7 +23,7 @@ Perfect for building internal tools, administrative consoles, and developer util
 ### Core Capabilities
 
 - 🖥️ **Interactive REPL** - Full-featured shell-like environment with history, completion, and line editing
-- 🌐 **Multi-Transport** - Serve commands over REPL, SSH, HTTP/WebSocket, or all simultaneously
+- 🌐 **Multi-Transport** - Serve commands over REPL, SSH, HTTP/WebSocket, Unix/TCP socket, or all simultaneously
 - 🔗 **Command Chaining** - Execute multiple commands sequentially using `;` separator
 - 🚦 **Piping** - Chain command outputs using Unix-style `|` pipes
 - 📁 **I/O Redirection** - Redirect command output to files with `>` while displaying on stdout

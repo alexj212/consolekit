@@ -287,6 +287,13 @@ Model Context Protocol server integration.
 
 **Use case:** Claude Desktop integration, AI tool access
 
+#### `AddSocketCmds(exec)`
+Socket server for programmatic access via JSON-line protocol.
+
+**Commands:** `socket start`, `socket info`
+
+**Use case:** Script integration, Claude Code skills, automation tools, external tool access
+
 ---
 
 ### Utilities

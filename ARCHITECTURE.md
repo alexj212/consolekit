@@ -22,20 +22,20 @@ This design enables serving the same commands over multiple protocols simultaneo
 ┌───────────────────┴──────────────────────────────────────┐
 │              Layer 3: Transport Handlers                  │
 │                                                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
-│  │LocalREPL    │  │ SSHHandler  │  │ HTTPHandler │      │
-│  │Handler      │  │             │  │             │      │
-│  │             │  │             │  │             │      │
-│  │ • Terminal  │  │ • Auth      │  │ • WebSocket │      │
-│  │ • History   │  │ • PTY       │  │ • REST API  │      │
-│  │ • Prompts   │  │ • Multi-    │  │ • Sessions  │      │
-│  │ • Colors    │  │   Session   │  │ • Embedded  │      │
-│  │             │  │             │  │   Web UI    │      │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘      │
-│         │                │                 │             │
-└─────────┼────────────────┼─────────────────┼─────────────┘
-          │                │                 │
-          └────────────────┼─────────────────┘
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ │
+│  │LocalREPL  │ │ SSHHandler│ │HTTPHandler│ │SocketHan- │ │
+│  │Handler    │ │           │ │           │ │dler       │ │
+│  │           │ │           │ │           │ │           │ │
+│  │ • Terminal│ │ • Auth    │ │ • WebSock │ │ • Unix/TCP│ │
+│  │ • History │ │ • PTY     │ │ • REST API│ │ • JSON-ln │ │
+│  │ • Prompts │ │ • Multi-  │ │ • Sessions│ │ • No-auth │ │
+│  │ • Colors  │ │   Session │ │ • Web UI  │ │   (unix)  │ │
+│  └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ │
+│        │             │             │              │       │
+└────────┼─────────────┼─────────────┼──────────────┼───────┘
+         │             │             │              │
+         └─────────────┼─────────────┼──────────────┘
+                       │             │
                           │
 ┌──────────────────────────┴───────────────────────────────┐
 │           Layer 2: TransportHandler Interface             │
@@ -235,6 +235,28 @@ httpHandler.Start()
 - `/admin` - Web terminal UI
 - `/` - Landing page
 
+#### 4. SocketHandler
+- **Purpose**: Programmatic access for tools and scripts
+- **Features**:
+  - Unix domain socket (default, no auth needed)
+  - TCP with token authentication
+  - JSON-line (NDJSON) protocol
+  - Multi-command persistent connections
+  - Instance conflict detection (won't overwrite active socket)
+  - Command filtering via TransportConfig
+
+```go
+socketHandler := NewSocketHandler(executor, "unix", "/tmp/myapp.sock")
+socketHandler.Start()
+```
+
+**Protocol:**
+- Request: `{"command":"help"}` + newline
+- Response: `{"output":"...","success":true}` + newline
+- One-shot: `echo '{"command":"help"}' | nc -U /tmp/myapp.sock`
+
+See [SOCKET_INTEGRATION.md](SOCKET_INTEGRATION.md) for full protocol specification and CLI usage.
+
 ## Layer 3: Display Adapters (REPL Only)
 
 Display adapters are **only used by REPLHandler**. They handle the terminal UI.
@@ -283,6 +305,10 @@ go sshHandler.Start()
 // HTTP Server
 httpHandler := NewHTTPHandler(executor, ":8080", "user", "pass")
 go httpHandler.Start()
+
+// Socket Server (for tools/scripts)
+socketHandler := NewSocketHandler(executor, "unix", "/tmp/app.sock")
+go socketHandler.Start()
 
 // All transports share:
 // - Same job manager (jobs visible from all transports)
@@ -500,6 +526,8 @@ handler.SetDisplayAdapter(NewMyAdapter())
 - **SSH**: Standard SSH security (keys, passwords, encryption)
 - **HTTP**: HTTPS recommended (use reverse proxy)
 - **REPL**: Local access only (no network exposure)
+- **Socket (Unix)**: File permission security (default 0600, owner-only)
+- **Socket (TCP)**: Token-based authentication, bind to localhost
 
 ### Command Filtering
 
@@ -573,3 +601,4 @@ handler.Run()
 - [EXAMPLES.md](examples/EXAMPLES.md) - Example applications
 - [SECURITY.md](SECURITY.md) - Security guide
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) - MCP protocol integration
+- [SOCKET_INTEGRATION.md](SOCKET_INTEGRATION.md) - Socket transport for programmatic access

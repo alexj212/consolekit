@@ -55,4 +55,5 @@ Designed for trusted environments only. See [SECURITY.md](SECURITY.md).
 - [COMMANDS.md](COMMANDS.md) — Command reference
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) — MCP server integration
 - [SECURITY.md](SECURITY.md) — Security model and threat analysis
+- [SOCKET_INTEGRATION.md](SOCKET_INTEGRATION.md) — Socket transport for programmatic access
 - [CLAUDE_REFERENCE.md](CLAUDE_REFERENCE.md) — Detailed feature documentation (transport handlers, subsystems, APIs)
