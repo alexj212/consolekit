@@ -7,9 +7,18 @@ ConsoleKit includes a socket transport handler that exposes CLI commands via a l
 The socket transport uses **Newline-Delimited JSON (NDJSON)** -- each message is a JSON object followed by a newline. This makes it trivially callable from any language, including plain bash.
 
 ```bash
-# One-shot command execution
+# One-shot command execution (Linux/macOS)
 echo '{"command":"help"}' | nc -U /tmp/myapp.sock
 ```
+
+### Platform Defaults
+
+| Platform | Default Network | Default Address | Auth |
+|----------|----------------|-----------------|------|
+| Linux/macOS | `unix` | `/tmp/{appname}.sock` | Filesystem permissions |
+| Windows | `tcp` | `127.0.0.1:0` (auto-assigned port) | Token-based |
+
+On all platforms, connection details are written to a **discovery file** (`{tempdir}/{appname}.sockinfo.json`) so that tools and scripts can auto-discover the server.
 
 ## Quick Start
 
@@ -18,14 +27,36 @@ echo '{"command":"help"}' | nc -U /tmp/myapp.sock
 From within a ConsoleKit application:
 
 ```bash
-# Unix socket (default, no authentication needed)
+# Default (Unix socket on Linux/macOS, TCP on Windows)
 ./myapp socket start
 
-# Custom socket path
+# Custom socket path (Linux/macOS)
 ./myapp socket start --addr /tmp/custom.sock
 
 # TCP socket (auto-generates auth token, printed to stderr)
 ./myapp socket start --network tcp --addr 127.0.0.1:9999
+```
+
+### REPL vs CLI Behavior
+
+When `socket start` is run from the **REPL**, the server starts in the background so the REPL remains interactive. Use `socket stop` to stop it. When run from the **command line**, it blocks until interrupted with Ctrl+C.
+
+### Managing the Server
+
+```bash
+# Check if a server is running
+./myapp socket status
+
+# Stop a running server
+./myapp socket stop
+
+# Generate a client script for the current OS
+./myapp socket script
+./myapp socket script --shell bash
+./myapp socket script --shell powershell
+
+# View server configuration info
+./myapp socket info
 ```
 
 ### Programmatic Setup
@@ -48,7 +79,7 @@ go tcpHandler.Start()
 ### Request
 
 ```json
-{"id": "optional-correlation-id", "command": "print hello", "token": "for-tcp-only"}
+{"id": "optional-correlation-id", "command": "print hello", "token": "for-tcp-only", "timeout": 30}
 ```
 
 | Field     | Type   | Required | Description                                    |
@@ -56,6 +87,7 @@ go tcpHandler.Start()
 | `command` | string | yes      | The command line to execute                    |
 | `id`      | string | no       | Correlation ID, echoed back in response        |
 | `token`   | string | no       | Auth token (required for TCP on first message) |
+| `timeout` | int    | no       | Per-request timeout in seconds (0 = no timeout) |
 
 ### Response
 
@@ -70,9 +102,20 @@ go tcpHandler.Start()
 | `success` | bool   | `true` if command executed without error |
 | `id`      | string | Echoed from request if provided      |
 
+### Built-in Protocol Commands
+
+These commands are handled directly by the socket handler without going through the command executor. They bypass command allow/deny filtering.
+
+| Command    | Description                                          |
+|------------|------------------------------------------------------|
+| `ping`     | Health check. Returns `{"output":"pong","success":true}` |
+| `conninfo` | Returns connection ID, remote address, uptime, idle time, auth status |
+
 ### Connection Model
 
 Connections are persistent -- a single connection can send multiple requests sequentially. Each request receives exactly one response. Commands are processed one at a time per connection. For concurrency, open multiple connections.
+
+TCP connections use keepalive (30s interval) to detect half-open connections. The `IdleTimeout` option actively disconnects idle connections when set.
 
 ## Connecting from the Command Line
 
@@ -116,74 +159,62 @@ This gives you readline support (arrow keys, history). You type raw JSON lines:
 rlwrap nc -U /tmp/myapp.sock
 ```
 
-**Using a wrapper script for natural command entry:**
+**Using the built-in script generator (recommended):**
 
-Save the following as `socket-repl.sh`:
+ConsoleKit can generate platform-appropriate client scripts that auto-discover the server:
+
+```bash
+# Generate and save a client script
+./myapp socket script > myapp-client.sh
+chmod +x myapp-client.sh
+
+# REPL mode
+./myapp-client.sh
+
+# Execute a single command
+./myapp-client.sh help
+./myapp-client.sh "print Hello from socket!"
+```
+
+On Windows:
+```powershell
+./myapp socket script --shell powershell > myapp-client.ps1
+
+# REPL mode
+.\myapp-client.ps1
+
+# Execute a single command
+.\myapp-client.ps1 help
+```
+
+The generated scripts:
+- Auto-discover the server via `sockinfo.json` (no hardcoded paths)
+- Validate the server PID is alive before connecting
+- Handle token auth for TCP mode automatically
+- Support both REPL (interactive) and single-command execution
+- Use `jq` when available, fall back to `grep`/`sed` for portability (bash)
+
+**Using a manual wrapper script:**
+
+For custom integrations, here's a minimal example:
 
 ```bash
 #!/usr/bin/env bash
 # socket-repl.sh - REPL-like interface to a ConsoleKit socket server
-# Usage: ./socket-repl.sh [socket-path]
-
 SOCK="${1:-/tmp/myapp.sock}"
 
-if [ ! -S "$SOCK" ]; then
-    echo "Socket not found: $SOCK"
-    exit 1
-fi
-
-echo "Connected to $SOCK (type 'quit' to exit)"
-echo ""
-
-# Open a persistent connection using a coprocess
 coproc SOCK { socat - UNIX-CONNECT:"$SOCK"; }
+echo "Connected to $SOCK (type 'quit' to exit)"
 
 while true; do
     read -r -e -p "> " cmd
     [ "$cmd" = "quit" ] && break
     [ -z "$cmd" ] && continue
-
-    # Send command as JSON
     echo "{\"command\":$(printf '%s' "$cmd" | jq -Rs .)}" >&"${SOCK[1]}"
-
-    # Read response and display output
     read -r -t 5 response <&"${SOCK[0]}"
-    if [ -n "$response" ]; then
-        output=$(echo "$response" | jq -r '.output // empty')
-        error=$(echo "$response" | jq -r '.error // empty')
-        [ -n "$output" ] && printf '%s' "$output"
-        [ -n "$error" ] && printf 'Error: %s\n' "$error"
-    else
-        echo "(no response)"
-    fi
+    echo "$response" | jq -r '.output // .error // "(no response)"'
 done
-
-# Close the coprocess
 kill "$SOCK_PID" 2>/dev/null
-echo "Disconnected."
-```
-
-Usage:
-
-```bash
-chmod +x socket-repl.sh
-./socket-repl.sh /tmp/myapp.sock
-```
-
-```
-Connected to /tmp/myapp.sock (type 'quit' to exit)
-
-> help
-Available commands:
-  cls        Clear screen
-  date       Display current date/time
-  ...
-
-> print Hello from socket!
-Hello from socket!
-
-> quit
-Disconnected.
 ```
 
 ### TCP Connection
@@ -256,33 +287,119 @@ Example:
 echo '{"command":"print Connection: @socket:conn_id"}' | nc -U /tmp/myapp.sock
 ```
 
+## Discovery File
+
+When started via the `socket start` command, the server writes a JSON info file for automatic discovery by tools and scripts:
+
+```json
+{
+  "network": "tcp",
+  "addr": "127.0.0.1:54321",
+  "token": "abc123...",
+  "pid": 12345,
+  "app": "myapp"
+}
+```
+
+Default path: `{tempdir}/{appname}.sockinfo.json`
+
+### Programmatic Discovery
+
+```go
+// Check if a server is running
+info, running := consolekit.IsServerRunning(consolekit.DefaultSocketInfoPath("myapp"))
+if running {
+    fmt.Printf("Server at %s:%s (PID %d)\n", info.Network, info.Addr, info.PID)
+}
+
+// Read info file directly
+info, err := consolekit.ReadSocketInfo("/tmp/myapp.sockinfo.json")
+
+// Stop a remote server
+err := consolekit.StopServer(consolekit.DefaultSocketInfoPath("myapp"))
+```
+
+### Programmatic Info File Setup
+
+When using `NewSocketHandler` directly, set the `InfoFile` field to enable discovery:
+
+```go
+handler := consolekit.NewSocketHandler(executor, "tcp", "127.0.0.1:0")
+handler.InfoFile = consolekit.DefaultSocketInfoPath("myapp")
+go handler.Start() // Info file written after listener binds
+```
+
 ## Configuration Options
 
-| Option           | Type          | Default | Description                            |
-|------------------|---------------|---------|----------------------------------------|
-| `MaxConnections` | `int`         | 0       | Max concurrent connections (0 = unlimited) |
-| `IdleTimeout`    | `time.Duration` | 0     | Disconnect after inactivity (0 = disabled) |
-| `SocketMode`     | `os.FileMode` | `0600`  | Unix socket file permissions           |
+| Option           | Type            | Default | Description                            |
+|------------------|-----------------|---------|----------------------------------------|
+| `MaxConnections` | `int`           | 0       | Max concurrent connections (0 = unlimited) |
+| `IdleTimeout`    | `time.Duration` | 0       | Disconnect idle connections (0 = disabled, actively enforced) |
+| `SocketMode`     | `os.FileMode`   | `0600`  | Unix socket file permissions           |
+| `InfoFile`       | `string`        | `""`    | Path to write discovery JSON (auto-cleaned on stop) |
 
 ```go
 handler := consolekit.NewSocketHandler(executor, "unix", "/tmp/myapp.sock")
 handler.MaxConnections = 10
 handler.IdleTimeout = 5 * time.Minute
 handler.SocketMode = 0660
+handler.InfoFile = consolekit.DefaultSocketInfoPath("myapp")
 ```
+
+### Idle Timeout
+
+When `IdleTimeout` is set, each connection is monitored by a background goroutine. If no requests are received within the timeout period, the connection is automatically closed. Activity is tracked per-request.
+
+### TCP Keepalive
+
+TCP connections automatically have keepalive enabled (30-second interval) to detect half-open connections caused by network issues or ungraceful client disconnects.
 
 ## Integration with Claude Code Skills
 
-A Claude Code skill can use the socket interface to execute commands:
+A Claude Code skill can auto-discover and connect to the socket server using the info file:
 
 ```bash
 #!/usr/bin/env bash
-# Example skill: run a ConsoleKit command and return the output
-SOCK="/tmp/myapp.sock"
-CMD="$1"
+# Example skill: run a ConsoleKit command via auto-discovery
+INFO_FILE="/tmp/myapp.sockinfo.json"
 
-response=$(echo "{\"command\":$(printf '%s' "$CMD" | jq -Rs .)}" | nc -U "$SOCK")
+# Read connection details
+NETWORK=$(jq -r '.network' "$INFO_FILE")
+ADDR=$(jq -r '.addr' "$INFO_FILE")
+TOKEN=$(jq -r '.token // empty' "$INFO_FILE")
+
+# Build request
+CMD="$1"
+if [ -n "$TOKEN" ]; then
+    REQ="{\"command\":\"$CMD\",\"token\":\"$TOKEN\"}"
+else
+    REQ="{\"command\":\"$CMD\"}"
+fi
+
+# Send and parse response
+if [ "$NETWORK" = "unix" ]; then
+    response=$(echo "$REQ" | nc -U "$ADDR")
+else
+    host="${ADDR%%:*}"; port="${ADDR##*:}"
+    response=$(echo "$REQ" | nc -w 5 "$host" "$port")
+fi
+
 echo "$response" | jq -r '.output // .error'
+```
+
+### Health Check from Skills
+
+```bash
+# Quick health check before running commands
+echo '{"command":"ping"}' | nc -U /tmp/myapp.sock
+# Returns: {"output":"pong","success":true}
+```
+
+### Command with Timeout
+
+```bash
+# Execute with a 30-second timeout
+echo '{"command":"slow-operation","timeout":30}' | nc -U /tmp/myapp.sock
 ```
 
 ## Multi-Transport Example

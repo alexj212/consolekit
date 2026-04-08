@@ -290,7 +290,7 @@ Model Context Protocol server integration.
 #### `AddSocketCmds(exec)`
 Socket server for programmatic access via JSON-line protocol.
 
-**Commands:** `socket start`, `socket info`
+**Commands:** `socket start`, `socket stop`, `socket status`, `socket info`, `socket script`
 
 **Use case:** Script integration, Claude Code skills, automation tools, external tool access
 

@@ -19,6 +19,7 @@ Complete reference guide for all ConsoleKit commands with usage examples.
 - [OS Execution](#os-execution)
 - [History](#history)
 - [Aliases](#aliases)
+- [Socket Server](#socket-server)
 
 ---
 
@@ -1083,7 +1084,104 @@ env | grep PATH > path.txt ; cat path.txt
 
 ---
 
+## Socket Server
+
+Programmatic access to commands via a JSON-line protocol over Unix sockets or TCP. See [SOCKET_INTEGRATION.md](SOCKET_INTEGRATION.md) for full protocol details.
+
+### socket start
+
+Start the socket server. Defaults to Unix socket on Linux/macOS, TCP on Windows.
+
+```bash
+# Start with platform defaults
+socket start
+
+# Custom Unix socket path
+socket start --addr /tmp/custom.sock
+
+# TCP mode (auto-generates auth token)
+socket start --network tcp --addr 127.0.0.1:9999
+```
+
+**Flags:**
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--network` | `unix` (Linux/macOS), `tcp` (Windows) | Network type: `unix` or `tcp` |
+| `--addr` | auto | Listen address (socket path or host:port) |
+
+When run from the REPL, the server starts in the background. When run from the command line, it blocks until Ctrl+C.
+
+A discovery file (`{appname}.sockinfo.json`) is written to the temp directory with connection details (network, address, token, PID) for automatic tool/skill discovery.
+
+### socket stop
+
+Stop a running socket server by reading the discovery file and sending a termination signal.
+
+```bash
+socket stop
+```
+
+Cleans up stale discovery files if the server is no longer running.
+
+### socket status
+
+Check if a socket server is running and display its connection details.
+
+```bash
+socket status
+```
+
+Output includes: network type, address, PID, app name, auth type. Cleans up stale discovery files.
+
+### socket info
+
+Display socket server configuration and usage examples for the current platform.
+
+```bash
+socket info
+```
+
+### socket script
+
+Generate a client shell script for connecting to the socket server. The script supports both interactive REPL mode and single-command execution.
+
+```bash
+# Generate for current OS (bash on Linux/macOS, PowerShell on Windows)
+socket script
+
+# Force a specific shell
+socket script --shell bash
+socket script --shell powershell
+
+# Save to file
+socket script > client.sh && chmod +x client.sh
+```
+
+**Flags:**
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--shell` | auto-detected | Script type: `bash` or `powershell` |
+
+**Generated script usage:**
+```bash
+./client.sh              # REPL mode (interactive prompt)
+./client.sh help         # Execute single command and display result
+./client.sh "set x 42"  # Execute command with arguments
+```
+
+### Built-in Protocol Commands
+
+These commands are handled directly by the socket handler (no executor round-trip):
+
+| Command | Response | Description |
+|---------|----------|-------------|
+| `ping` | `{"output":"pong","success":true}` | Health check |
+| `conninfo` | Connection details | Connection ID, remote addr, uptime, idle, auth status |
+
+---
+
 For more information, see:
 - **CLAUDE.md** - Architecture and implementation details
 - **README.md** - Getting started guide
 - **SECURITY.md** - Security considerations
+- **SOCKET_INTEGRATION.md** - Socket transport protocol and integration guide

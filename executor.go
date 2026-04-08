@@ -55,6 +55,9 @@ type CommandExecutor struct {
 
 	// Display settings
 	NoColor bool // Disable color output (respects NO_COLOR env var)
+
+	// Runtime mode
+	Interactive bool // True when running in REPL mode (set by transport handler)
 }
 
 // FileHandler abstracts file I/O for redirection and script loading.

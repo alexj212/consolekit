@@ -247,6 +247,7 @@ func (h *REPLHandler) buildREPLRootCmd() func() *cobra.Command {
 // Start begins the REPL loop (blocking).
 // This is the main entry point for interactive REPL mode.
 func (h *REPLHandler) Start() error {
+	h.executor.Interactive = true
 	return h.display.Start()
 }
 
