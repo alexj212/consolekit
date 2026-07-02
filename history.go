@@ -658,7 +658,8 @@ func AddHistory(exec *CommandExecutor) func(cmd *cobra.Command) {
 				ResetAllFlags(cmd)
 			},
 		}
-		dedupeCmd.Flags().BoolP("consecutive", "c", false, "Only remove consecutive duplicates")
+		// no -c shorthand: host apps commonly bind a persistent -c (e.g. --config).
+		dedupeCmd.Flags().Bool("consecutive", false, "Only remove consecutive duplicates")
 
 		// history export
 		var exportCmd = &cobra.Command{

@@ -329,7 +329,9 @@ repeat --background --count 5 --sleep 1 'client im "uid 11122757" 11122757 hello
 				return nil
 			},
 		}
-		repeatCmd.Flags().IntP("count", "c", 1, "Number of times to repeat the message (-1 for infinite)")
+		// no -c shorthand: host apps commonly bind a persistent -c (e.g. --config),
+		// and cobra panics when merging a colliding persistent shorthand into this set.
+		repeatCmd.Flags().Int("count", 1, "Number of times to repeat the message (-1 for infinite)")
 		repeatCmd.Flags().IntP("sleep", "s", 0, "Seconds to wait between each repetition")
 		repeatCmd.Flags().BoolP("background", "b", false, "Run in background")
 

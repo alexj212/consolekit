@@ -155,7 +155,8 @@ Examples:
 				ResetAllFlags(cmd)
 			},
 		}
-		highlightCmd.Flags().StringVarP(&highlightColor, "color", "c", "yellow", "Highlight color: red, green, blue, yellow, magenta, cyan")
+		// no -c shorthand: host apps commonly bind a persistent -c (e.g. --config).
+		highlightCmd.Flags().StringVar(&highlightColor, "color", "yellow", "Highlight color: red, green, blue, yellow, magenta, cyan")
 
 		// page command - paginate output
 		var pageSize int
@@ -265,7 +266,8 @@ Examples:
 				ResetAllFlags(cmd)
 			},
 		}
-		colCmd.Flags().IntVarP(&colCount, "count", "c", 2, "Number of columns")
+		// no -c shorthand: host apps commonly bind a persistent -c (e.g. --config).
+		colCmd.Flags().IntVar(&colCount, "count", 2, "Number of columns")
 
 		rootCmd.AddCommand(tableCmd)
 		rootCmd.AddCommand(highlightCmd)

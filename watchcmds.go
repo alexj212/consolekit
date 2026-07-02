@@ -78,7 +78,9 @@ Examples:
 		}
 
 		watchCmd.Flags().DurationVarP(&interval, "interval", "n", 2*time.Second, "Interval between executions (e.g., 2s, 500ms, 1m)")
-		watchCmd.Flags().IntVarP(&count, "count", "c", 0, "Number of times to execute (0 = infinite)")
+		// no -c shorthand: host apps commonly bind a persistent -c (e.g. --config),
+		// and cobra panics when merging a colliding persistent shorthand into this set.
+		watchCmd.Flags().IntVar(&count, "count", 0, "Number of times to execute (0 = infinite)")
 		watchCmd.Flags().BoolVar(&clearScreen, "clear", false, "Clear screen before each execution")
 
 		rootCmd.AddCommand(watchCmd)
