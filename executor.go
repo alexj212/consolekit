@@ -415,6 +415,14 @@ func (e *CommandExecutor) replaceToken(scope *safemap.SafeMap[string, string], t
 
 // RootCmd creates a new root Cobra command with all registered subcommands.
 // Returns a fresh command instance on each call.
+// globalFlagsTemplateBlock is the "Global Flags" section of cobra's default
+// usage template (spf13/cobra v1.10.2). It is stripped in RootCmd so inherited
+// persistent/startup flags don't clutter every subcommand's help in the REPL.
+const globalFlagsTemplateBlock = `{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}`
+
 func (e *CommandExecutor) RootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:                "",
@@ -426,6 +434,14 @@ func (e *CommandExecutor) RootCmd() *cobra.Command {
 			return cmd.Help()
 		},
 	}
+
+	// Drop the "Global Flags" section from command help. Those are the host's
+	// persistent/startup flags (e.g. --config, --saveDir); inside the REPL they
+	// are noise on every subcommand's help. Subcommands inherit the root's usage
+	// template, so setting it here covers the whole tree. The removal is a
+	// surgical string edit of cobra's default template — if cobra changes that
+	// block, the match simply fails and the section reappears (no breakage).
+	rootCmd.SetUsageTemplate(strings.Replace(rootCmd.UsageTemplate(), globalFlagsTemplateBlock, "", 1))
 
 	pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
 
